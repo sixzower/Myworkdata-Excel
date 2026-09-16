@@ -649,7 +649,12 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="bw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>ค้นหาจากชื่อเรื่อง</label>
+          <input type="search" id="bw-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+        </div>
       </div>
+      <div class="search-results" id="bw-search-results" style="display:none;"></div>
       <div id="bw-status"></div>
     </div>
     <div class="panel" id="bw-result-panel" style="display:none;">
@@ -679,7 +684,12 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="color-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>ค้นหาจากชื่อเรื่อง</label>
+          <input type="search" id="color-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+        </div>
       </div>
+      <div class="search-results" id="color-search-results" style="display:none;"></div>
       <div id="color-status"></div>
     </div>
     <div class="panel" id="color-result-panel" style="display:none;">
@@ -709,7 +719,12 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="chartbw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>ค้นหาจากชื่อเรื่อง</label>
+          <input type="search" id="chartbw-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+        </div>
       </div>
+      <div class="search-results" id="chartbw-search-results" style="display:none;"></div>
       <div id="chartbw-status"></div>
     </div>
     <div class="panel" id="chartbw-result-panel" style="display:none;">
@@ -739,13 +754,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="postcard-fetch-month">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-      </div>
-      <div class="controls" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px;">
-        <div class="field" style="flex:1;">
-          <label>หรือค้นหาชื่องาน (เพิ่มข้ามเดือนได้)</label>
-          <input type="search" id="postcard-search" placeholder="พิมพ์ชื่อเรื่องบางส่วน เช่น กล่องรักวัยใส">
+        <div class="field" style="flex:1;min-width:200px;">
+          <label>ค้นหาจากชื่อเรื่อง</label>
+          <input type="search" id="postcard-search" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
         </div>
-        <button class="btn secondary" id="postcard-load">ค้นหา</button>
       </div>
       <div id="postcard-status"></div>
       <div class="search-results" id="postcard-results" style="display:none;"></div>
@@ -1429,6 +1441,7 @@ async function runMonthReport(tabKey){
   countEl.textContent = `พบ ${filtered.length} รายการ`;
   setStatus(statusId, 'ok', `ดึงข้อมูลสำเร็จ — ${def.title(monthIdx, gYear)}`);
   resultPanel.style.display = '';
+  applyQuickSearch(tabKey); // re-apply any existing search text to the freshly rendered rows
 }
 
 function renderMonthTable(tabKey, def, entries){
@@ -1477,6 +1490,109 @@ function renderMonthTable(tabKey, def, entries){
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+/* ============ QUICK SEARCH (client-side filter on the already-fetched table) ============ */
+// Filters the visible rows of a month's report table by "ชื่อเรื่อง"/"เล่ม" — no
+// re-fetch, just show/hide <tr> elements already in the DOM.
+function applyQuickSearch(tabKey){
+  const input = document.getElementById(tabKey + '-quicksearch');
+  const def = REPORT_DEFS[tabKey];
+  const table = document.getElementById(tabKey + '-table');
+  if(!input || !table || !def) return;
+  const q = input.value.trim().toLowerCase();
+  const titleColIdx = def.columns.findIndex(c => c.label === 'ชื่อเรื่อง' || c.label === 'เรื่อง');
+  const volumeColIdx = def.columns.findIndex(c => c.label === 'เล่ม');
+  const rows = table.querySelectorAll('tbody tr');
+  let visibleCount = 0;
+  rows.forEach(tr => {
+    if(tr.classList.contains('empty-row')){ tr.style.display = ''; return; }
+    if(!q){ tr.style.display = ''; visibleCount++; return; }
+    const cells = tr.children;
+    const titleText = titleColIdx > -1 && cells[titleColIdx] ? cells[titleColIdx].textContent.toLowerCase() : '';
+    const volumeText = volumeColIdx > -1 && cells[volumeColIdx] ? cells[volumeColIdx].textContent.toLowerCase() : '';
+    const match = titleText.includes(q) || volumeText.includes(q);
+    tr.style.display = match ? '' : 'none';
+    if(match) visibleCount++;
+  });
+  const countEl = document.getElementById(tabKey + '-count');
+  if(countEl && q){
+    countEl.textContent = `พบ ${visibleCount} รายการ (กรองจากคำค้นหา)`;
+  } else if(countEl){
+    const emptyRows = table.querySelectorAll('tbody tr.empty-row').length;
+    countEl.textContent = `พบ ${rows.length - emptyRows} รายการ`;
+  }
+}
+function setupQuickSearch(tabKey){
+  const input = document.getElementById(tabKey + '-quicksearch');
+  if(!input) return;
+  input.addEventListener('input', () => applyQuickSearch(tabKey));
+}
+
+/* ============ INSTANT SEARCH (bw / color / chartbw) ============ */
+// Lets the person just type a title/เล่ม and see matches immediately, without
+// picking a month or pressing "ค้นหา" first — pulls the whole sheet once
+// (cached after the first search) and searches across every row/month.
+const fullReportCache = {};
+
+async function ensureFullReportLoaded(tabKey){
+  if(fullReportCache[tabKey]) return fullReportCache[tabKey];
+  const def = REPORT_DEFS[tabKey];
+  const rows = await fetchSheetRaw(def.sheetKey);
+  const headerIdx = findHeaderRowIndex(rows, def.headerKeywords);
+  const dataStart = headerIdx === -1 ? 0 : headerIdx + 1;
+  const dataRows = rows.slice(dataStart).map((r, i) => ({ r, rowIndex: dataStart + i }));
+  fullReportCache[tabKey] = dataRows;
+  return dataRows;
+}
+
+function setupInstantSearch(tabKey){
+  const input = document.getElementById(tabKey + '-quicksearch');
+  const resultsEl = document.getElementById(tabKey + '-search-results');
+  const def = REPORT_DEFS[tabKey];
+  if(!input || !resultsEl || !def) return;
+
+  const titleCol = def.columns.find(c => c.label === 'ชื่อเรื่อง' || c.label === 'เรื่อง');
+  const volumeCol = def.columns.find(c => c.label === 'เล่ม');
+  const dateCol = def.columns.find(c => c.idx === def.dateColIndex);
+
+  input.addEventListener('input', async (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if(!q){ resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+
+    let rows;
+    try{
+      resultsEl.style.display = '';
+      resultsEl.innerHTML = '<div class="row"><span>กำลังค้นหา...</span></div>';
+      rows = await ensureFullReportLoaded(tabKey);
+    }catch(err){
+      resultsEl.innerHTML = `<div class="row"><span>ค้นหาไม่สำเร็จ: ${escapeHtml(err.message)}</span></div>`;
+      return;
+    }
+
+    // Re-check the box still has the same text in case of fast typing while the fetch was in flight
+    if(input.value.trim().toLowerCase() !== q) return;
+
+    const matches = rows.filter(({r}) => {
+      const titleText = titleCol ? cellText(r[titleCol.idx]).toLowerCase() : '';
+      const volumeText = volumeCol ? cellText(r[volumeCol.idx]).toLowerCase() : '';
+      return titleText.includes(q) || volumeText.includes(q);
+    }).slice(0, 40);
+
+    if(matches.length === 0){
+      resultsEl.innerHTML = '<div class="row"><span>ไม่พบรายการที่ตรงกัน</span></div>';
+      return;
+    }
+    resultsEl.innerHTML = matches.map(({r}) => {
+      const title = escapeHtml(titleCol ? cellText(r[titleCol.idx]) : '');
+      const volume = volumeCol ? escapeHtml(cellText(r[volumeCol.idx])) : '';
+      const date = dateCol ? escapeHtml(cellText(r[dateCol.idx])) : '';
+      const metaParts = [volume, date].filter(Boolean);
+      return `<div class="row"><span>${title}${metaParts.length ? ` <span class="meta">— ${metaParts.join(' · ')}</span>` : ''}</span></div>`;
+    }).join('');
+  });
+}
+['bw','color','chartbw'].forEach(setupInstantSearch);
+['bw','color','chartbw'].forEach(setupQuickSearch);
 
 /* ============ EXCEL EXPORT (styled — matches the on-screen table) ============ */
 // SheetJS' free/community build can only *read* styles, not write them, so an
@@ -1719,16 +1835,6 @@ async function ensurePostcardLoaded(){
     .filter(({r}) => r[1] && cellText(r[1]).trim() !== '');
   return postcardRows;
 }
-
-document.getElementById('postcard-load').addEventListener('click', async () => {
-  setStatus('postcard-status', 'loading', 'กำลังโหลดฐานข้อมูล Postcard...');
-  try{
-    const rows = await ensurePostcardLoaded();
-    setStatus('postcard-status', 'ok', `โหลดสำเร็จ — พบทั้งหมด ${rows.length} รายการ พิมพ์ชื่อเรื่องด้านบนเพื่อค้นหา`);
-  }catch(err){
-    setStatus('postcard-status', 'error', 'โหลดไม่สำเร็จ: ' + err.message);
-  }
-});
 
 document.getElementById('postcard-fetch-month').addEventListener('click', async () => {
   const monthIdx = parseInt(document.getElementById('postcard-month').value, 10);
