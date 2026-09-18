@@ -650,11 +650,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         <button class="btn press" id="bw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
         <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาจากชื่อเรื่อง</label>
-          <input type="search" id="bw-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
+          <input type="search" id="bw-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
         </div>
       </div>
-      <div class="search-results" id="bw-search-results" style="display:none;"></div>
       <div id="bw-status"></div>
     </div>
     <div class="panel" id="bw-result-panel" style="display:none;">
@@ -685,11 +684,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         <button class="btn press" id="color-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
         <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาจากชื่อเรื่อง</label>
-          <input type="search" id="color-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
+          <input type="search" id="color-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
         </div>
       </div>
-      <div class="search-results" id="color-search-results" style="display:none;"></div>
       <div id="color-status"></div>
     </div>
     <div class="panel" id="color-result-panel" style="display:none;">
@@ -720,11 +718,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         <button class="btn press" id="chartbw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
         <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาจากชื่อเรื่อง</label>
-          <input type="search" id="chartbw-quicksearch" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
+          <input type="search" id="chartbw-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
         </div>
       </div>
-      <div class="search-results" id="chartbw-search-results" style="display:none;"></div>
       <div id="chartbw-status"></div>
     </div>
     <div class="panel" id="chartbw-result-panel" style="display:none;">
@@ -754,10 +751,13 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="postcard-fetch-month">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาจากชื่อเรื่อง</label>
-          <input type="search" id="postcard-search" placeholder="พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา">
+      </div>
+      <div class="controls" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px;">
+        <div class="field" style="flex:1;">
+          <label>หรือค้นหาชื่องาน (เพิ่มข้ามเดือนได้)</label>
+          <input type="search" id="postcard-search" placeholder="พิมพ์ชื่อเรื่องบางส่วน เช่น กล่องรักวัยใส">
         </div>
+        <button class="btn secondary" id="postcard-load">ค้นหา</button>
       </div>
       <div id="postcard-status"></div>
       <div class="search-results" id="postcard-results" style="display:none;"></div>
@@ -1441,6 +1441,12 @@ async function runMonthReport(tabKey){
   countEl.textContent = `พบ ${filtered.length} รายการ`;
   setStatus(statusId, 'ok', `ดึงข้อมูลสำเร็จ — ${def.title(monthIdx, gYear)}`);
   resultPanel.style.display = '';
+  const searchInput = document.getElementById(tabKey + '-quicksearch');
+  if(searchInput){
+    searchInput.disabled = false;
+    searchInput.placeholder = 'พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา';
+    searchInput.title = '';
+  }
   applyQuickSearch(tabKey); // re-apply any existing search text to the freshly rendered rows
 }
 
@@ -1499,7 +1505,7 @@ function applyQuickSearch(tabKey){
   const def = REPORT_DEFS[tabKey];
   const table = document.getElementById(tabKey + '-table');
   if(!input || !table || !def) return;
-  const q = input.value.trim().toLowerCase();
+  const q = input.value.trim().toLowerCase().normalize('NFC');
   const titleColIdx = def.columns.findIndex(c => c.label === 'ชื่อเรื่อง' || c.label === 'เรื่อง');
   const volumeColIdx = def.columns.findIndex(c => c.label === 'เล่ม');
   const rows = table.querySelectorAll('tbody tr');
@@ -1508,8 +1514,8 @@ function applyQuickSearch(tabKey){
     if(tr.classList.contains('empty-row')){ tr.style.display = ''; return; }
     if(!q){ tr.style.display = ''; visibleCount++; return; }
     const cells = tr.children;
-    const titleText = titleColIdx > -1 && cells[titleColIdx] ? cells[titleColIdx].textContent.toLowerCase() : '';
-    const volumeText = volumeColIdx > -1 && cells[volumeColIdx] ? cells[volumeColIdx].textContent.toLowerCase() : '';
+    const titleText = titleColIdx > -1 && cells[titleColIdx] ? cells[titleColIdx].textContent.toLowerCase().normalize('NFC') : '';
+    const volumeText = volumeColIdx > -1 && cells[volumeColIdx] ? cells[volumeColIdx].textContent.toLowerCase().normalize('NFC') : '';
     const match = titleText.includes(q) || volumeText.includes(q);
     tr.style.display = match ? '' : 'none';
     if(match) visibleCount++;
@@ -1527,71 +1533,6 @@ function setupQuickSearch(tabKey){
   if(!input) return;
   input.addEventListener('input', () => applyQuickSearch(tabKey));
 }
-
-/* ============ INSTANT SEARCH (bw / color / chartbw) ============ */
-// Lets the person just type a title/เล่ม and see matches immediately, without
-// picking a month or pressing "ค้นหา" first — pulls the whole sheet once
-// (cached after the first search) and searches across every row/month.
-const fullReportCache = {};
-
-async function ensureFullReportLoaded(tabKey){
-  if(fullReportCache[tabKey]) return fullReportCache[tabKey];
-  const def = REPORT_DEFS[tabKey];
-  const rows = await fetchSheetRaw(def.sheetKey);
-  const headerIdx = findHeaderRowIndex(rows, def.headerKeywords);
-  const dataStart = headerIdx === -1 ? 0 : headerIdx + 1;
-  const dataRows = rows.slice(dataStart).map((r, i) => ({ r, rowIndex: dataStart + i }));
-  fullReportCache[tabKey] = dataRows;
-  return dataRows;
-}
-
-function setupInstantSearch(tabKey){
-  const input = document.getElementById(tabKey + '-quicksearch');
-  const resultsEl = document.getElementById(tabKey + '-search-results');
-  const def = REPORT_DEFS[tabKey];
-  if(!input || !resultsEl || !def) return;
-
-  const titleCol = def.columns.find(c => c.label === 'ชื่อเรื่อง' || c.label === 'เรื่อง');
-  const volumeCol = def.columns.find(c => c.label === 'เล่ม');
-  const dateCol = def.columns.find(c => c.idx === def.dateColIndex);
-
-  input.addEventListener('input', async (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    if(!q){ resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
-
-    let rows;
-    try{
-      resultsEl.style.display = '';
-      resultsEl.innerHTML = '<div class="row"><span>กำลังค้นหา...</span></div>';
-      rows = await ensureFullReportLoaded(tabKey);
-    }catch(err){
-      resultsEl.innerHTML = `<div class="row"><span>ค้นหาไม่สำเร็จ: ${escapeHtml(err.message)}</span></div>`;
-      return;
-    }
-
-    // Re-check the box still has the same text in case of fast typing while the fetch was in flight
-    if(input.value.trim().toLowerCase() !== q) return;
-
-    const matches = rows.filter(({r}) => {
-      const titleText = titleCol ? cellText(r[titleCol.idx]).toLowerCase() : '';
-      const volumeText = volumeCol ? cellText(r[volumeCol.idx]).toLowerCase() : '';
-      return titleText.includes(q) || volumeText.includes(q);
-    }).slice(0, 40);
-
-    if(matches.length === 0){
-      resultsEl.innerHTML = '<div class="row"><span>ไม่พบรายการที่ตรงกัน</span></div>';
-      return;
-    }
-    resultsEl.innerHTML = matches.map(({r}) => {
-      const title = escapeHtml(titleCol ? cellText(r[titleCol.idx]) : '');
-      const volume = volumeCol ? escapeHtml(cellText(r[volumeCol.idx])) : '';
-      const date = dateCol ? escapeHtml(cellText(r[dateCol.idx])) : '';
-      const metaParts = [volume, date].filter(Boolean);
-      return `<div class="row"><span>${title}${metaParts.length ? ` <span class="meta">— ${metaParts.join(' · ')}</span>` : ''}</span></div>`;
-    }).join('');
-  });
-}
-['bw','color','chartbw'].forEach(setupInstantSearch);
 ['bw','color','chartbw'].forEach(setupQuickSearch);
 
 /* ============ EXCEL EXPORT (styled — matches the on-screen table) ============ */
@@ -1835,6 +1776,16 @@ async function ensurePostcardLoaded(){
     .filter(({r}) => r[1] && cellText(r[1]).trim() !== '');
   return postcardRows;
 }
+
+document.getElementById('postcard-load').addEventListener('click', async () => {
+  setStatus('postcard-status', 'loading', 'กำลังโหลดฐานข้อมูล Postcard...');
+  try{
+    const rows = await ensurePostcardLoaded();
+    setStatus('postcard-status', 'ok', `โหลดสำเร็จ — พบทั้งหมด ${rows.length} รายการ พิมพ์ชื่อเรื่องด้านบนเพื่อค้นหา`);
+  }catch(err){
+    setStatus('postcard-status', 'error', 'โหลดไม่สำเร็จ: ' + err.message);
+  }
+});
 
 document.getElementById('postcard-fetch-month').addEventListener('click', async () => {
   const monthIdx = parseInt(document.getElementById('postcard-month').value, 10);
@@ -2645,7 +2596,11 @@ function extractFields(lines, items, viewport, renderedCanvas) {
     // The lookbehind rejects a match that starts mid-word (e.g. the "x" inside
     // "12.5x18cm." from the ขนาดงาน line) — a real English title always starts
     // right after whitespace/punctuation, never glued onto a preceding digit/letter.
-    const m = (line || "").match(/(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9 .,'&~()/\-]{2,})\s*$/);
+    // The allowed-character class includes both quote styles (' and ") since
+    // titles sometimes wrap a nickname/skill name in quotes, e.g.
+    // CHEAT SKILL "SHISHA SOSEI" 5 — without " here, that quote broke the
+    // match and the whole English title silently failed to extract.
+    const m = (line || "").match(/(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9 .,'"&~()/\-]{2,})\s*$/);
     return m ? m[1].replace(/\s+/g, " ").trim() : "";
   }
 
@@ -3035,6 +2990,7 @@ async function saveAsFile() {
 
     pdf.setDisplayMode("fullpage", "continuous", "UseNone");
     pdf.save(filename + ".pdf");
+    saveLastCtpSample(); // remember this as the new example for next time
   } catch (err) {
     alert("เกิดข้อผิดพลาดในการสร้างไฟล์ PDF:\n" + err.message);
   } finally {
@@ -3067,6 +3023,53 @@ document.getElementById("imgModal").addEventListener("wheel", (e) => {
   document.getElementById("imgModalPic").style.transform = "scale(" + modalImgScale.toFixed(2) + ")";
 }, { passive: false });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeImageModal(); });
+
+/* ============ REMEMBER LAST-SAVED SAMPLE (localStorage) ============ */
+// Instead of always showing the same hardcoded example on page load, the form
+// now remembers whatever was in it the last time someone actually saved a PDF,
+// and pre-fills that in on the next visit — so the "example" on screen is
+// always the most recently saved real job, not stale placeholder data.
+const CTP_SAMPLE_STORAGE_KEY = "ctpChecklist_lastSavedSample";
+const CTP_CHOICE_GROUPS = ["plateSize", "layout", "pageOrder", "fileStatus"];
+
+function saveLastCtpSample() {
+  try {
+    const data = {};
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) data[id] = el.value;
+    });
+    CTP_CHOICE_GROUPS.forEach(name => {
+      const checked = document.querySelector('input[name="' + name + '"]:checked');
+      if (checked) data[name] = checked.value;
+    });
+    localStorage.setItem(CTP_SAMPLE_STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn("บันทึกตัวอย่างฟอร์มไว้สำหรับครั้งถัดไปไม่สำเร็จ:", e.message);
+  }
+}
+
+function loadLastCtpSample() {
+  try {
+    const raw = localStorage.getItem(CTP_SAMPLE_STORAGE_KEY);
+    if (!raw) return; // nothing saved yet — leave the shipped example as-is
+    const data = JSON.parse(raw);
+    ids.forEach(id => {
+      if (data[id] === undefined) return;
+      const el = document.getElementById(id);
+      if (el) el.value = data[id];
+    });
+    CTP_CHOICE_GROUPS.forEach(name => {
+      if (data[name] === undefined) return;
+      document.querySelectorAll('input[name="' + name + '"]').forEach(r => {
+        r.checked = (r.value === data[name]);
+      });
+    });
+  } catch (e) {
+    console.warn("โหลดตัวอย่างฟอร์มที่บันทึกไว้ไม่สำเร็จ:", e.message);
+  }
+}
+loadLastCtpSample();
 
 render();
 
