@@ -296,6 +296,20 @@
   .search-results .row:hover{background:var(--surface-hover);}
   .search-results .meta{color:var(--ink-soft);font-size:12px;}
 
+  /* ============ SHARED TITLE-SEARCH DROPDOWN (BW / Color / Postcard) — a
+     rounded floating dropdown styled like the Bill Plate suggestion box:
+     hover rows, and the "เล่ม N" part bold + colored. Generic (not scoped to
+     one tab) since bw/color/postcard all reuse the same classes. ============ */
+  .qs-field{position:relative;}
+  .qs-suggest{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface-white);border:1px solid var(--line);border-radius:8px;max-height:280px;overflow-y:auto;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.15);display:none;}
+  .qs-suggest.open{display:block;}
+  .qs-suggest .qs-opt{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .qs-suggest .qs-opt:last-child{border-bottom:0;}
+  .qs-suggest .qs-opt:hover{background:var(--surface-hover);}
+  .qs-suggest .qs-opt b{color:var(--press);font-weight:700;}
+  .qs-suggest .qs-opt .qs-meta{color:var(--ink-soft);font-size:11.5px;white-space:nowrap;flex:none;margin-left:8px;}
+  .qs-suggest .qs-empty{padding:10px 12px;font-size:12.5px;color:var(--ink-soft);font-style:italic;}
+
   h2.section-title{
     font-size:17px;
     margin:0 0 5px;
@@ -490,6 +504,7 @@ html[data-theme="dark"] .cl-warn{background:#332711;border-color:#5a4420;color:#
 .doc .sig-label{background:var(--doc-gray-row);font-weight:700;text-align:center;}
 .doc .sig-val{text-align:center;font-weight:700;}
 .doc,.doc *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+.billdoc,.billdoc *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
 
 .img-modal{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.82);align-items:center;justify-content:center;cursor:zoom-out;padding:30px;}
 .img-modal.open{display:flex;}
@@ -502,6 +517,9 @@ html[data-theme="dark"] .cl-warn{background:#332711;border-color:#5a4420;color:#
   .cl-layout{display:block!important;}
   .doc table{page-break-inside:avoid;}
   .doc tr{page-break-inside:avoid;}
+  .billdoc table{page-break-inside:avoid;}
+  .billdoc tr{page-break-inside:avoid;}
+  .billdoc thead{display:table-header-group;}
 }
 @page{size:A4;margin:12mm;}
 
@@ -584,6 +602,48 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
 #panel-stockdb .btn.spin svg{animation:sdb-spin .8s linear infinite;}
 @keyframes sdb-spin{to{transform:rotate(360deg);}}
 @media(max-width:720px){#panel-stockdb .field input[type="search"]{min-width:0;width:100%;}}
+
+/* ============ BILL PLATE TAB — search/editor UI, scoped to #panel-billplate,
+   plus the standalone .billdoc printable document (kept unscoped/self-contained
+   like .doc so html2canvas can capture it cleanly for the PDF export). ============ */
+#panel-billplate .bp-preview-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
+#panel-billplate .bp-preview-label{font-size:12px;color:var(--ink-soft);margin-bottom:8px;}
+#panel-billplate #bp-preview-table td.num{text-align:center;}
+#panel-billplate #bp-preview-table .bp-add-btn{font-size:11.5px;padding:3px 10px;border-radius:6px;border:1px solid var(--ok);color:var(--ok);background:none;cursor:pointer;white-space:nowrap;}
+#panel-billplate #bp-preview-table .bp-add-btn:hover{background:var(--ok);color:#fff;}
+#panel-billplate #bp-editor-table input{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;background:var(--surface-white);color:var(--ink);}
+#panel-billplate #bp-editor-table td{padding:6px 6px;}
+#panel-billplate .bp-remove{background:none;border:1px solid var(--press);color:var(--press);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;}
+#panel-billplate .bp-remove:hover{background:var(--press);color:#fff;}
+#panel-billplate .bp-doc-scroll{overflow-x:auto;padding:6px 0;}
+@media(max-width:720px){#panel-billplate .field{width:100%;}}
+
+/* the printable bill document — self-contained visual replica of the LUCKPIM
+   plate work order (ใบส่งงานเพลท) shown in the reference PDF */
+.billdoc{width:210mm;min-height:140mm;margin:0 auto;background:#fff;color:#111;padding:14mm 14mm 10mm;box-sizing:border-box;font-family:'Sarabun',Arial,sans-serif;font-size:13px;box-shadow:0 2px 14px rgba(0,0,0,.14);}
+.billdoc .bp-head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:16px;}
+.billdoc .bp-logo{width:60px;height:60px;border-radius:50%;flex:none;object-fit:cover;}
+.billdoc .bp-company b{font-size:16px;}
+.billdoc .bp-company div{font-size:10.5px;margin-top:3px;}
+.billdoc .bp-title{text-align:center;font-size:16px;font-weight:700;text-decoration:underline;margin:0 0 16px;}
+.billdoc .bp-meta{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-size:13px;}
+.billdoc .bp-meta b{margin-right:6px;display:inline-block;min-width:85px;}
+.billdoc .bp-meta span{text-decoration:underline;padding:0 14px 0 2px;min-width:110px;display:inline-block;}
+.billdoc .bp-section-label{font-weight:700;text-decoration:underline;margin:2px 0 6px;}
+.billdoc table{width:100%;border-collapse:collapse;margin-bottom:30px;}
+.billdoc th,.billdoc td{border:1px solid #111;padding:5px 7px;font-size:11px;}
+.billdoc thead th{text-align:center;font-weight:700;background:#f2f2f2;}
+.billdoc td.bp-c-idx{text-align:center;width:32px;}
+.billdoc td.bp-c-title{text-align:left;white-space:nowrap;}
+.billdoc td.bp-c-num,.billdoc td.bp-c-size,.billdoc td.bp-c-type{text-align:center;white-space:nowrap;}
+.billdoc td.bp-c-note{text-align:center;}
+.billdoc .bp-sign{display:flex;justify-content:space-between;margin-top:8px;font-size:13px;}
+.billdoc .bp-sign>div{width:32%;text-align:left;}
+.billdoc .bp-sign .line{margin-bottom:6px;}
+.billdoc .bp-sign b{display:block;margin:2px 0;font-weight:700;}
+.billdoc .bp-sign b.bp-sign-name{display:block;text-align:left;}
+@media(max-width:800px){.billdoc{width:100%;padding:6mm;}}
+@media print{.billdoc{box-shadow:none;margin:0;width:100%;padding:6mm 6mm 5mm;}}
 </style>
 </head>
 <body>
@@ -603,8 +663,9 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
       <button data-tab="color"><span class="nav-dot"></span><span>Plate Color</span></button>
       <button data-tab="postcard"><span class="nav-dot"></span><span>Postcard</span></button>
       <button data-tab="chartbw"><span class="nav-dot"></span><span>Digital</span></button>
-      <button data-tab="checklist"><span class="nav-dot"></span><span>CTP (QC)</span></button>
       <button data-tab="stockdb"><span class="nav-dot"></span><span>Stock DB</span></button>
+      <button data-tab="checklist"><span class="nav-dot"></span><span>CTP (QC)</span></button>
+      <button data-tab="billplate"><span class="nav-dot"></span><span>Bill Plate</span></button>
     </nav>
     <div class="sidebar-footer">
       <div class="live-dot"></div>
@@ -649,9 +710,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="bw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
-          <input type="search" id="bw-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
+        <div class="field qs-field" style="flex:1;min-width:200px;">
+          <label>ค้นหา</label>
+          <input type="search" id="bw-quicksearch" placeholder="ค้นหาจาก &quot;ชื่อเรื่อง&quot; หรือ &quot;เล่ม&quot;">
+          <div class="qs-suggest" id="bw-qs-suggest"></div>
         </div>
       </div>
       <div id="bw-status"></div>
@@ -683,9 +745,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="color-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
-          <input type="search" id="color-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
+        <div class="field qs-field" style="flex:1;min-width:200px;">
+          <label>ค้นหา</label>
+          <input type="search" id="color-quicksearch" placeholder="ค้นหาจาก &quot;ชื่อเรื่อง&quot; หรือ &quot;เล่ม&quot;">
+          <div class="qs-suggest" id="color-qs-suggest"></div>
         </div>
       </div>
       <div id="color-status"></div>
@@ -717,9 +780,10 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="chartbw-fetch">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-        <div class="field" style="flex:1;min-width:200px;">
-          <label>ค้นหาชื่อเรื่อง / เล่ม</label>
-          <input type="search" id="chartbw-quicksearch" placeholder="กด &quot;ค้นหา&quot; ด้านซ้ายก่อน จึงจะกรองได้" disabled title="กดปุ่ม ค้นหา เพื่อดึงข้อมูลเดือนนี้ก่อน จึงจะใช้ช่องนี้กรองได้">
+        <div class="field qs-field" style="flex:1;min-width:200px;">
+          <label>ค้นหา</label>
+          <input type="search" id="chartbw-quicksearch" placeholder="ค้นหาจาก &quot;ชื่อเรื่อง&quot; หรือ &quot;เล่ม&quot;">
+          <div class="qs-suggest" id="chartbw-qs-suggest"></div>
         </div>
       </div>
       <div id="chartbw-status"></div>
@@ -751,16 +815,13 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <button class="btn press" id="postcard-fetch-month">ค้นหา</button>
         <button class="btn secondary combined-download-btn">รวมชีท</button>
-      </div>
-      <div class="controls" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px;">
-        <div class="field" style="flex:1;">
-          <label>หรือค้นหาชื่องาน (เพิ่มข้ามเดือนได้)</label>
-          <input type="search" id="postcard-search" placeholder="พิมพ์ชื่อเรื่องบางส่วน เช่น กล่องรักวัยใส">
+        <div class="field qs-field" style="flex:1;min-width:200px;">
+          <label>ค้นหา</label>
+          <input type="search" id="postcard-search" placeholder="ค้นหาจาก &quot;ชื่อเรื่อง&quot; หรือ &quot;เล่ม&quot;">
+          <div class="qs-suggest" id="postcard-results"></div>
         </div>
-        <button class="btn secondary" id="postcard-load">ค้นหา</button>
       </div>
       <div id="postcard-status"></div>
-      <div class="search-results" id="postcard-results" style="display:none;"></div>
     </div>
     <div class="panel" id="postcard-result-panel" style="display:none;">
       <div id="postcard-table-wrap"></div>
@@ -967,6 +1028,81 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
     </div>
   </section>
 
+  <!-- ============ BILL PLATE TAB — search titles pulled from Plate BW, assemble
+       them into an editable "ใบส่งงานเพลท" (plate work-order) matching the
+       LUCKPIM sample bill, then print / save as PDF. ============ -->
+  <section id="panel-billplate" class="tab-panel" style="display:none;">
+    <div class="panel no-print">
+      <h2 class="section-title">ใบส่งงานเพลท</h2>
+      <p class="section-note">ดึงรายชื่อเรื่องจาก Plate BW มาเติมในใบส่งงานเพลท แล้วพิมพ์ หรือบันทึกเป็น PDF ได้ทันที</p>
+      <div class="controls">
+        <div class="field">
+          <label>เดือนที่ดึงข้อมูล (Plate BW)</label>
+          <select id="bp-month"></select>
+        </div>
+        <div class="field">
+          <label>ปี (ค.ศ.)</label>
+          <input type="number" id="bp-year" step="1">
+        </div>
+        <button class="btn press" id="bp-fetch">ดึงข้อมูล</button>
+        <div class="field qs-field" style="flex:1;min-width:220px;">
+          <label>ค้นหา</label>
+          <input type="search" id="bp-search" placeholder="ค้นหาจาก &quot;ชื่อเรื่อง&quot; หรือ &quot;เล่ม&quot;">
+          <div class="qs-suggest" id="bp-qs-suggest"></div>
+        </div>
+      </div>
+
+      <div class="bp-preview-wrap" id="bp-preview-wrap" style="display:none;">
+        <div class="bp-preview-label">รายการทั้งหมดในเดือนนี้ (เรียงตามวันที่) — กด "เพิ่ม" เพื่อใส่ในใบส่งงาน</div>
+        <div class="table-wrap">
+          <table class="report" id="bp-preview-table">
+            <thead><tr><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>ขนาด</th><th>ประเภท</th><th>ยก</th><th>วันที่รับ</th><th></th></tr></thead>
+            <tbody id="bp-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:14px;">
+        <div class="field">
+          <label>ประจำเดือน (แสดงในเอกสาร)</label>
+          <select id="bp-doc-month"></select>
+        </div>
+        <div class="field">
+          <label>ผู้ส่งงาน (ฝ่ายเพลท)</label>
+          <input type="text" id="bp-signer" value="อนิวัฒน์ ปีกลาง">
+        </div>
+        <div class="field">
+          <label>วันที่ส่ง</label>
+          <input type="text" id="bp-date" placeholder="d/m/yyyy">
+        </div>
+      </div>
+      <div id="bp-status"></div>
+    </div>
+
+    <div class="panel no-print">
+      <h2 class="section-title" style="font-size:15px;">รายการในใบส่งงาน</h2>
+      <div class="table-wrap">
+        <table class="report" id="bp-editor-table">
+          <thead><tr><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>จำนวน</th><th>ขนาด</th><th>ประเภท</th><th>หมายเหตุ</th><th></th></tr></thead>
+          <tbody id="bp-editor-body"><tr class="empty-row"><td colspan="8">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar no-print">
+        <span class="count" id="bp-count">0 รายการ</span>
+        <div class="actions">
+          <button class="btn secondary" id="bp-print">พิมพ์</button>
+          <button class="btn press" id="bp-save">บันทึกเป็น PDF</button>
+        </div>
+      </div>
+      <div class="bp-doc-scroll">
+        <div class="billdoc" id="billdoc"></div>
+      </div>
+    </div>
+  </section>
+
   <div class="img-modal" id="imgModal" onclick="closeImageModal()">
     <div class="img-modal-close" onclick="closeImageModal()">&times;</div>
     <img id="imgModalPic" src="" onclick="event.stopPropagation()">
@@ -1072,7 +1208,7 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   // month-filter reports — hide it on the CTP checklist tab, which has its
   // own upload-based flow instead.
   const contentHead = document.querySelector('.content-head');
-  if(contentHead) contentHead.style.display = (btn.dataset.tab === 'checklist' || btn.dataset.tab === 'stockdb') ? 'none' : '';
+  if(contentHead) contentHead.style.display = (btn.dataset.tab === 'checklist' || btn.dataset.tab === 'stockdb' || btn.dataset.tab === 'billplate') ? 'none' : '';
 });
 
 /* ============ MONTH/YEAR SELECTS ============ */
@@ -1444,7 +1580,7 @@ async function runMonthReport(tabKey){
   const searchInput = document.getElementById(tabKey + '-quicksearch');
   if(searchInput){
     searchInput.disabled = false;
-    searchInput.placeholder = 'พิมพ์ชื่อเรื่องหรือเล่มที่ต้องการหา';
+    searchInput.placeholder = 'ค้นหาจาก "ชื่อเรื่อง" หรือ "เล่ม"';
     searchInput.title = '';
   }
   applyQuickSearch(tabKey); // re-apply any existing search text to the freshly rendered rows
@@ -1534,6 +1670,86 @@ function setupQuickSearch(tabKey){
   input.addEventListener('input', () => applyQuickSearch(tabKey));
 }
 ['bw','color','chartbw'].forEach(setupQuickSearch);
+
+/* ============ FULL-SHEET TITLE SEARCH (BW / Color) — search across every
+   month without fetching first; picking a result jumps straight to that
+   entry's month and loads it. Complements applyQuickSearch above (which
+   still filters the currently-loaded month's rows once one is fetched). ============ */
+const fullSheetCache = {}; // tabKey -> array of {r, rowIndex}, the whole sheet's data rows
+
+async function ensureFullSheetLoaded(tabKey){
+  if(fullSheetCache[tabKey]) return fullSheetCache[tabKey];
+  const def = REPORT_DEFS[tabKey];
+  const rows = await fetchSheetRaw(def.sheetKey);
+  const headerIdx = findHeaderRowIndex(rows, def.headerKeywords);
+  const dataStart = headerIdx === -1 ? 0 : headerIdx + 1;
+  const dataRows = rows.slice(dataStart)
+    .map((r, i) => ({ r, rowIndex: dataStart + i }))
+    .filter(({r}) => cellText(r[1]).trim() !== '');
+  fullSheetCache[tabKey] = dataRows;
+  return dataRows;
+}
+
+function setupTitleJumpSearch(tabKey){
+  const input = document.getElementById(tabKey + '-quicksearch');
+  const box = document.getElementById(tabKey + '-qs-suggest');
+  if(!input || !box) return;
+  const def = REPORT_DEFS[tabKey];
+
+  input.addEventListener('input', async (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if(!q){ box.classList.remove('open'); box.innerHTML = ''; return; }
+    let entries;
+    try{
+      entries = await ensureFullSheetLoaded(tabKey);
+    }catch(err){
+      box.innerHTML = `<div class="qs-empty">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(err.message)}</div>`;
+      box.classList.add('open');
+      return;
+    }
+    // the user may have kept typing while the fetch was in flight — bail if stale
+    if(input.value.trim().toLowerCase() !== q) return;
+    const matches = entries.filter(en => cellText(en.r[1]).toLowerCase().includes(q)).slice(0, 30);
+    if(!matches.length){
+      box.innerHTML = '<div class="qs-empty">ไม่พบเรื่องที่ตรงกับคำค้นหา</div>';
+    } else {
+      box.innerHTML = matches.map(en => {
+        const idx = entries.indexOf(en);
+        const title = escapeHtml(cellText(en.r[1]));
+        const vol = cellText(en.r[3]).trim();
+        const d = parseDateCell(en.r[def.dateColIndex]);
+        const dateLabel = d ? `${THAI_MONTHS_SHORT[d.m]} ${d.y}` : '';
+        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>เล่ม ${escapeHtml(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
+      }).join('');
+    }
+    box.classList.add('open');
+  });
+
+  box.addEventListener('click', async (e) => {
+    const opt = e.target.closest('.qs-opt[data-idx]');
+    if(!opt) return;
+    const entries = fullSheetCache[tabKey];
+    const entry = entries && entries[parseInt(opt.dataset.idx, 10)];
+    box.classList.remove('open');
+    box.innerHTML = '';
+    input.value = '';
+    if(!entry) return;
+    const d = parseDateCell(entry.r[def.dateColIndex]);
+    if(d){
+      document.getElementById(tabKey + '-month').value = d.m;
+      document.getElementById(tabKey + '-year').value = d.y;
+      await runMonthReport(tabKey);
+      const panel = document.getElementById(tabKey + '-result-panel');
+      if(panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#panel-' + tabKey + ' .qs-field')){ box.classList.remove('open'); }
+  });
+}
+['bw','color','chartbw'].forEach(setupTitleJumpSearch);
+
 
 /* ============ EXCEL EXPORT (styled — matches the on-screen table) ============ */
 // SheetJS' free/community build can only *read* styles, not write them, so an
@@ -1777,16 +1993,6 @@ async function ensurePostcardLoaded(){
   return postcardRows;
 }
 
-document.getElementById('postcard-load').addEventListener('click', async () => {
-  setStatus('postcard-status', 'loading', 'กำลังโหลดฐานข้อมูล Postcard...');
-  try{
-    const rows = await ensurePostcardLoaded();
-    setStatus('postcard-status', 'ok', `โหลดสำเร็จ — พบทั้งหมด ${rows.length} รายการ พิมพ์ชื่อเรื่องด้านบนเพื่อค้นหา`);
-  }catch(err){
-    setStatus('postcard-status', 'error', 'โหลดไม่สำเร็จ: ' + err.message);
-  }
-});
-
 document.getElementById('postcard-fetch-month').addEventListener('click', async () => {
   const monthIdx = parseInt(document.getElementById('postcard-month').value, 10);
   const gYear = parseInt(document.getElementById('postcard-year').value, 10);
@@ -1841,7 +2047,7 @@ document.getElementById('postcard-search').addEventListener('input', async (e) =
     }
   }
   if(q.length < 2){
-    resultsEl.style.display = 'none';
+    resultsEl.classList.remove('open');
     resultsEl.innerHTML = '';
     return;
   }
@@ -1851,20 +2057,27 @@ document.getElementById('postcard-search').addEventListener('input', async (e) =
     .slice(0, 40);
 
   if(matches.length === 0){
-    resultsEl.innerHTML = '<div class="row"><span>ไม่พบรายการที่ตรงกัน</span></div>';
-    resultsEl.style.display = '';
+    resultsEl.innerHTML = '<div class="qs-empty">ไม่พบรายการที่ตรงกัน</div>';
+    resultsEl.classList.add('open');
     return;
   }
   resultsEl.innerHTML = matches.map(({entry, idx}) => {
     const title = escapeHtml(cellText(entry.r[1]));
     const date = escapeHtml(cellText(entry.r[9]));
     const total = escapeHtml(cellText(entry.r[8]));
-    return `<div class="row">
-      <span>${title} <span class="meta">— ${date} · ทั้งหมด ${total}</span></span>
-      <button class="btn-sm" data-add="${idx}">+ เพิ่ม</button>
+    return `<div class="qs-opt">
+      <span>${title}<span class="qs-meta">${date} · ทั้งหมด ${total}</span></span>
+      <button class="btn-sm" type="button" data-add="${idx}">+ เพิ่ม</button>
     </div>`;
   }).join('');
-  resultsEl.style.display = '';
+  resultsEl.classList.add('open');
+});
+
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('#panel-postcard .qs-field')){
+    const el = document.getElementById('postcard-results');
+    if(el) el.classList.remove('open');
+  }
 });
 
 document.getElementById('postcard-results').addEventListener('click', (e) => {
@@ -1873,6 +2086,12 @@ document.getElementById('postcard-results').addEventListener('click', (e) => {
   const idx = parseInt(btn.dataset.add, 10);
   postcardCart.push(postcardRows[idx]);
   renderPostcardTable();
+  const resultsEl = document.getElementById('postcard-results');
+  resultsEl.classList.remove('open');
+  resultsEl.innerHTML = '';
+  const searchInput = document.getElementById('postcard-search');
+  searchInput.value = '';
+  searchInput.focus();
 });
 
 document.getElementById('postcard-clear').addEventListener('click', () => {
@@ -3504,6 +3723,368 @@ document.getElementById('sdbSearch').addEventListener('input', renderTable);
 
 loadAll();
 setInterval(loadAll, 120000);
+
+})();
+
+/* ============ BILL PLATE TAB — pulls titles from the already-live Plate BW
+   sheet (reusing the same fetchSheetRaw()/REPORT_DEFS.bw plumbing the Plate
+   B|W tab uses) and assembles them into an editable, printable "ใบส่งงานเพลท"
+   matching the reference LUCKPIM bill. Wrapped in its own closure so its state
+   (bpEntries/bpItems) and helper names never touch the rest of the page. ============ */
+(function(){
+  const BP_LOGO = 'data:image/jpeg;base64,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';
+  const BP_SIGNER_DEFAULT = 'อนิวัฒน์ ปีกลาง';
+
+  let bpEntries = [];  // {title, volume, size, type, qty} pulled from Plate BW for the selected month
+  let bpItems = [];    // {title, volume, qty, size, type, note} — rows currently in the bill
+
+  function bpEscapeAttr(s){
+    return (s || '').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ---- month/year/date defaults ---- */
+  function initBpMonthYear(){
+    const now = new Date();
+    ['bp-month','bp-doc-month'].forEach(id => {
+      const sel = document.getElementById(id);
+      THAI_MONTHS.forEach((m,i) => {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = m;
+        sel.appendChild(opt);
+      });
+      sel.value = now.getMonth();
+    });
+    document.getElementById('bp-year').value = now.getFullYear();
+    document.getElementById('bp-date').value = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+  }
+  initBpMonthYear();
+
+  /* ---- pull this month's Plate BW rows into bpEntries (for the preview table) ---- */
+  async function bpFetch(){
+    const monthIdx = parseInt(document.getElementById('bp-month').value, 10);
+    const gYear = parseInt(document.getElementById('bp-year').value, 10);
+    setStatus('bp-status', 'loading', 'กำลังดึงข้อมูลจาก Plate BW...');
+
+    const def = REPORT_DEFS.bw;
+    let rows;
+    try{
+      rows = await fetchSheetRaw('bw');
+    }catch(err){
+      setStatus('bp-status', 'error', 'ดึงข้อมูลไม่สำเร็จ: ' + err.message + ' — ตรวจสอบว่าชีทเปิดสิทธิ์ "ใครมีลิงก์ก็ดูได้" แล้วลองใหม่');
+      return;
+    }
+
+    const headerIdx = findHeaderRowIndex(rows, def.headerKeywords);
+    const dataStart = headerIdx === -1 ? 0 : headerIdx + 1;
+    const dataRows = rows.slice(dataStart);
+
+    bpEntries = dataRows
+      .filter(r => {
+        const d = parseDateCell(r[def.dateColIndex]);
+        return d && d.y === gYear && d.m === monthIdx;
+      })
+      .map(r => ({
+        title: cellDisplay(r[1]),
+        volume: cellDisplay(r[3]),
+        size: cellDisplay(r[4]),
+        type: cellDisplay(r[6]),
+        qty: cellDisplay(r[7]),
+        date: parseDateCell(r[def.dateColIndex])
+      }))
+      .filter(en => en.title !== '-')
+      .sort((a, b) => a.date.d - b.date.d);
+
+    const found = bpEntries.length > 0;
+    setStatus('bp-status', found ? 'ok' : 'error',
+      found
+        ? `ดึงข้อมูลสำเร็จ — พบ ${bpEntries.length} เรื่องใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`
+        : `ไม่พบข้อมูลใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`);
+    renderBpPreview();
+  }
+  document.getElementById('bp-fetch').addEventListener('click', bpFetch);
+
+  /* ---- table preview of everything just fetched (styled like the Plate BW
+     report table) — click "เพิ่ม" on any row to add it straight to the bill ---- */
+  function renderBpPreview(){
+    const wrap = document.getElementById('bp-preview-wrap');
+    const body = document.getElementById('bp-preview-body');
+    if(!bpEntries.length){
+      wrap.style.display = 'none';
+      body.innerHTML = '';
+      return;
+    }
+    body.innerHTML = bpEntries.map((en, i) => `
+      <tr>
+        <td class="num">${i+1}</td>
+        <td>${escapeHtml(en.title)}</td>
+        <td class="num">${escapeHtml(en.volume)}</td>
+        <td class="num">${escapeHtml(en.size)}</td>
+        <td class="num">${escapeHtml(en.type)}</td>
+        <td class="num">${escapeHtml(en.qty)}</td>
+        <td class="num">${en.date ? `${en.date.d}/${en.date.m+1}/${en.date.y}` : '-'}</td>
+        <td class="num"><button class="bp-add-btn" type="button" data-i="${i}">+ เพิ่ม</button></td>
+      </tr>`).join('');
+    wrap.style.display = '';
+  }
+  document.getElementById('bp-preview-body').addEventListener('click', (e) => {
+    const btn = e.target.closest('.bp-add-btn[data-i]');
+    if(!btn) return;
+    const en = bpEntries[parseInt(btn.dataset.i, 10)];
+    if(en) addBpItem(en);
+  });
+
+  /* ---- search box (works like Plate BW's — searches the whole sheet across
+     every month, no need to fetch first) — picking a result adds it straight
+     to the bill ---- */
+  const bpSearchDef = REPORT_DEFS.bw;
+  const bpSearchInput = document.getElementById('bp-search');
+  const bpSearchBox = document.getElementById('bp-qs-suggest');
+
+  bpSearchInput.addEventListener('input', async (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if(!q){ bpSearchBox.classList.remove('open'); bpSearchBox.innerHTML = ''; return; }
+    let entries;
+    try{
+      entries = await ensureFullSheetLoaded('bw');
+    }catch(err){
+      bpSearchBox.innerHTML = `<div class="qs-empty">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(err.message)}</div>`;
+      bpSearchBox.classList.add('open');
+      return;
+    }
+    if(bpSearchInput.value.trim().toLowerCase() !== q) return;
+    const matches = entries.filter(en =>
+      cellText(en.r[1]).toLowerCase().includes(q) || cellText(en.r[3]).toLowerCase().includes(q)
+    ).slice(0, 30);
+    if(!matches.length){
+      bpSearchBox.innerHTML = '<div class="qs-empty">ไม่พบเรื่องที่ตรงกับคำค้นหา</div>';
+    } else {
+      bpSearchBox.innerHTML = matches.map(en => {
+        const idx = entries.indexOf(en);
+        const title = escapeHtml(cellText(en.r[1]));
+        const vol = cellText(en.r[3]).trim();
+        const d = parseDateCell(en.r[bpSearchDef.dateColIndex]);
+        const dateLabel = d ? `${THAI_MONTHS_SHORT[d.m]} ${d.y}` : '';
+        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>เล่ม ${escapeHtml(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
+      }).join('');
+    }
+    bpSearchBox.classList.add('open');
+  });
+
+  bpSearchBox.addEventListener('click', (e) => {
+    const opt = e.target.closest('.qs-opt[data-idx]');
+    if(!opt) return;
+    const entries = fullSheetCache['bw'];
+    const entry = entries && entries[parseInt(opt.dataset.idx, 10)];
+    bpSearchBox.classList.remove('open');
+    bpSearchBox.innerHTML = '';
+    bpSearchInput.value = '';
+    if(!entry) return;
+    addBpItem({
+      title: cellDisplay(entry.r[1]),
+      volume: cellDisplay(entry.r[3]),
+      size: cellDisplay(entry.r[4]),
+      type: cellDisplay(entry.r[6]),
+      qty: cellDisplay(entry.r[7])
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#panel-billplate .qs-field')){ bpSearchBox.classList.remove('open'); }
+  });
+
+  /* ---- bill items: add / remove / edit ---- */
+  function bpPadVolume(v){
+    const t = (v || '').toString().trim();
+    return /^\d+$/.test(t) ? t.padStart(2, '0') : t;
+  }
+
+  function addBpItem(en){
+    bpItems.push({
+      title: en.title,
+      volume: en.volume === '-' ? '' : bpPadVolume(en.volume),
+      qty: (en.qty && en.qty !== '-') ? (en.qty + ' ยก') : '',
+      size: en.size === '-' ? '' : en.size,
+      type: en.type === '-' ? '' : en.type,
+      note: ''
+    });
+    renderBpEditor();
+    renderBillDoc();
+  }
+
+  function removeBpItem(i){
+    bpItems.splice(i, 1);
+    renderBpEditor();
+    renderBillDoc();
+  }
+
+  function renderBpEditor(){
+    const body = document.getElementById('bp-editor-body');
+    document.getElementById('bp-count').textContent = bpItems.length + ' รายการ';
+    if(!bpItems.length){
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr>';
+      return;
+    }
+    body.innerHTML = bpItems.map((it, i) => `
+      <tr>
+        <td class="num">${i+1}</td>
+        <td><input type="text" data-i="${i}" data-f="title" value="${bpEscapeAttr(it.title)}"></td>
+        <td style="width:80px;"><input type="text" data-i="${i}" data-f="volume" value="${bpEscapeAttr(it.volume)}"></td>
+        <td style="width:90px;"><input type="text" data-i="${i}" data-f="qty" value="${bpEscapeAttr(it.qty)}"></td>
+        <td style="width:100px;"><input type="text" data-i="${i}" data-f="size" value="${bpEscapeAttr(it.size)}"></td>
+        <td style="width:90px;"><input type="text" data-i="${i}" data-f="type" value="${bpEscapeAttr(it.type)}"></td>
+        <td style="min-width:120px;"><input type="text" data-i="${i}" data-f="note" value="${bpEscapeAttr(it.note)}"></td>
+        <td class="num"><button class="bp-remove" data-remove="${i}" type="button" title="ลบรายการนี้">✕</button></td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('bp-editor-body').addEventListener('input', (e) => {
+    const inp = e.target.closest('input[data-f]');
+    if(!inp) return;
+    const i = parseInt(inp.dataset.i, 10);
+    if(!bpItems[i]) return;
+    bpItems[i][inp.dataset.f] = inp.value;
+    renderBillDoc();
+  });
+
+  // pad a hand-typed volume ("9") with a leading zero ("09") once the user
+  // leaves the field, same as volumes pulled in from Plate BW
+  document.getElementById('bp-editor-body').addEventListener('blur', (e) => {
+    const inp = e.target.closest('input[data-f="volume"]');
+    if(!inp) return;
+    const i = parseInt(inp.dataset.i, 10);
+    if(!bpItems[i]) return;
+    const padded = bpPadVolume(inp.value);
+    inp.value = padded;
+    bpItems[i].volume = padded;
+    renderBillDoc();
+  }, true);
+
+  document.getElementById('bp-editor-body').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-remove]');
+    if(!btn) return;
+    removeBpItem(parseInt(btn.dataset.remove, 10));
+  });
+
+  ['bp-doc-month','bp-date','bp-signer'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', renderBillDoc);
+    el.addEventListener('change', renderBillDoc);
+  });
+
+  /* ---- render the printable document itself ---- */
+  function renderBillDoc(){
+    const monthIdx = parseInt(document.getElementById('bp-doc-month').value, 10);
+    const dateStr = document.getElementById('bp-date').value || '';
+    const signer = document.getElementById('bp-signer').value || BP_SIGNER_DEFAULT;
+
+    const rowsHtml = bpItems.length
+      ? bpItems.map((it, i) => `
+        <tr>
+          <td class="bp-c-idx">${i+1}</td>
+          <td class="bp-c-title">${escapeHtml(it.title)}${it.volume ? ` <b>เล่ม ${escapeHtml(it.volume)}</b>` : ''}</td>
+          <td class="bp-c-num">${escapeHtml(it.qty)}</td>
+          <td class="bp-c-size">${escapeHtml(it.size)}</td>
+          <td class="bp-c-type">${escapeHtml(it.type)}</td>
+          <td class="bp-c-note">${escapeHtml(it.note)}</td>
+        </tr>`).join('')
+      : `<tr><td class="bp-c-idx">&nbsp;</td><td class="bp-c-title">&nbsp;</td><td></td><td></td><td></td><td class="bp-c-note"></td></tr>`;
+
+    document.getElementById('billdoc').innerHTML = `
+      <div class="bp-head">
+        <img class="bp-logo" src="${BP_LOGO}" alt="LUCKPIM logo">
+        <div class="bp-company">
+          <b>LUCKPIM PUBLISHING CO.,LTD.</b>
+          <div>48/66 M.1 Eakachai-Bangbon Rd., Kokkrabuer,Muang,Samutsakorn, 74000, Thailand</div>
+        </div>
+      </div>
+      <div class="bp-title">ใบส่งงานเพลท</div>
+      <div class="bp-meta">
+        <div><b>ประจำเดือน</b><span>${THAI_MONTHS[monthIdx] || ''}</span></div>
+        <div><b>วันที่ส่ง</b><span>${escapeHtml(dateStr)}</span></div>
+      </div>
+      <div class="bp-section-label">เพลท</div>
+      <table>
+        <thead><tr>
+          <th style="width:32px;">ลำดับ</th>
+          <th>เรื่อง</th>
+          <th style="width:60px;">จำนวน</th>
+          <th style="width:68px;">ขนาด</th>
+          <th style="width:58px;">ประเภท</th>
+          <th style="width:85px;">หมายเหตุ</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="bp-sign">
+        <div>
+          <div class="line">ผู้ส่งงาน...........................</div>
+          <b class="bp-sign-name">( ${escapeHtml(signer)} )</b>
+          <div>ตำแหน่ง&nbsp;&nbsp;&nbsp;ฝ่ายเพลท</div>
+        </div>
+        <div>
+          <div class="line">ผู้รับงาน.............................</div>
+          <b class="bp-sign-name">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</b>
+          <div>ตำแหน่ง</div>
+        </div>
+      </div>
+    `;
+  }
+  renderBpEditor();
+  renderBillDoc(); // initial empty-state render so the doc isn't blank on first visit
+
+  /* ---- print / save-as-PDF — same html2canvas+jsPDF pattern as the CTP tab ---- */
+  function bpFilename(){
+    const monthIdx = parseInt(document.getElementById('bp-doc-month').value, 10);
+    const dateStr = (document.getElementById('bp-date').value || '').replace(/\//g, '-');
+    return `ใบส่งงานเพลท (เดือน ${THAI_MONTHS[monthIdx]}) - ${dateStr}`;
+  }
+
+  document.getElementById('bp-print').addEventListener('click', () => {
+    const prevTitle = document.title;
+    document.title = bpFilename();
+    window.print();
+    setTimeout(() => { document.title = prevTitle; }, 500);
+  });
+
+  document.getElementById('bp-save').addEventListener('click', async () => {
+    const btn = document.getElementById('bp-save');
+    const originalLabel = btn.textContent;
+    btn.disabled = true; btn.textContent = 'กำลังสร้าง PDF...';
+    try{
+      if (typeof html2canvas === "undefined" || !window.jspdf) {
+        throw new Error(
+          'ไลบรารีสร้าง PDF โหลดไม่สำเร็จ (มักเกิดจากเครือข่าย/ไฟร์วอลล์บล็อกการโหลดจากอินเทอร์เน็ต) ' +
+          '— กรุณาใช้ปุ่ม "พิมพ์" แทน แล้วในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF / Save as PDF" ' +
+          'ซึ่งไม่ต้องพึ่งอินเทอร์เน็ตและได้ผลลัพธ์เหมือนกัน'
+        );
+      }
+      const docEl = document.getElementById('billdoc');
+      const canvas = await html2canvas(docEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 12;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const usableWidth = pageWidth - margin * 2;
+      const usableHeight = pageHeight - margin * 2;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      let imgWidth = usableWidth;
+      let imgHeight = (canvas.height * imgWidth) / canvas.width;
+      if(imgHeight > usableHeight){
+        imgHeight = usableHeight;
+        imgWidth = (canvas.width * imgHeight) / canvas.height;
+      }
+      const x = margin + (usableWidth - imgWidth) / 2;
+      const y = margin;
+      pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+      pdf.setDisplayMode('fullpage', 'continuous', 'UseNone');
+      pdf.save(bpFilename() + '.pdf');
+    }catch(err){
+      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF:\n' + err.message);
+    }finally{
+      btn.disabled = false; btn.textContent = originalLabel;
+    }
+  });
 
 })();
 </script>
