@@ -607,7 +607,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
    plus the standalone .billdoc printable document (kept unscoped/self-contained
    like .doc so html2canvas can capture it cleanly for the PDF export). ============ */
 #panel-billplate .bp-preview-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
-#panel-billplate .bp-preview-label{font-size:12px;color:var(--ink-soft);margin-bottom:8px;}
+#panel-billplate .bp-preview-label{font-size:12px;color:var(--ink-soft);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
 #panel-billplate #bp-preview-table td.num{text-align:center;}
 #panel-billplate #bp-preview-table .bp-add-btn{font-size:11.5px;padding:3px 10px;border-radius:6px;border:1px solid var(--ok);color:var(--ok);background:none;cursor:pointer;white-space:nowrap;}
 #panel-billplate #bp-preview-table .bp-add-btn:hover{background:var(--ok);color:#fff;}
@@ -646,7 +646,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
 @media print{.billdoc{box-shadow:none;margin:0;width:100%;padding:6mm 6mm 5mm;}}
 #panel-billplate .toolbar{max-width:210mm;margin-left:auto;margin-right:auto;}
 .bp-toast{
-  position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);
+  position:fixed;left:50%;top:24px;transform:translateX(-50%) translateY(-20px);
   background:var(--ok);color:#fff;font-weight:600;font-size:14.5px;
   padding:12px 22px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);
   opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
@@ -1062,8 +1062,11 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
       </div>
 
       <div class="bp-preview-wrap" id="bp-preview-wrap" style="display:none;">
-        <div class="bp-preview-label">รายการทั้งหมดในเดือนนี้ (เรียงตามวันที่) — กด "เพิ่ม" เพื่อใส่ในใบส่งงาน</div>
-        <div class="table-wrap">
+        <div class="bp-preview-label">
+          <span>รายการทั้งหมดในเดือนนี้ (เรียงตามวันที่) — กด "เพิ่ม" เพื่อใส่ในใบส่งงาน</span>
+          <button type="button" class="btn press" id="bp-preview-toggle">ย่อตาราง</button>
+        </div>
+        <div class="table-wrap" id="bp-preview-tablewrap">
           <table class="report" id="bp-preview-table">
             <thead><tr><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>ขนาด</th><th>ประเภท</th><th>ยก</th><th>วันที่รับ</th><th></th></tr></thead>
             <tbody id="bp-preview-body"></tbody>
@@ -3836,7 +3839,16 @@ setInterval(loadAll, 120000);
         <td class="num"><button class="bp-add-btn" type="button" data-i="${i}">+ เพิ่ม</button></td>
       </tr>`).join('');
     wrap.style.display = '';
+    // each new fetch starts expanded, regardless of whether it was collapsed before
+    document.getElementById('bp-preview-tablewrap').style.display = '';
+    document.getElementById('bp-preview-toggle').textContent = 'ย่อตาราง';
   }
+  document.getElementById('bp-preview-toggle').addEventListener('click', (e) => {
+    const tableWrap = document.getElementById('bp-preview-tablewrap');
+    const collapsed = tableWrap.style.display === 'none';
+    tableWrap.style.display = collapsed ? '' : 'none';
+    e.target.textContent = collapsed ? 'ย่อตาราง' : 'ขยายตาราง';
+  });
   document.getElementById('bp-preview-body').addEventListener('click', (e) => {
     const btn = e.target.closest('.bp-add-btn[data-i]');
     if(!btn) return;
