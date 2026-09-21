@@ -644,6 +644,15 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
 .billdoc .bp-sign b.bp-sign-name{display:block;text-align:left;}
 @media(max-width:800px){.billdoc{width:100%;padding:6mm;}}
 @media print{.billdoc{box-shadow:none;margin:0;width:100%;padding:6mm 6mm 5mm;}}
+#panel-billplate .toolbar{max-width:210mm;margin-left:auto;margin-right:auto;}
+.bp-toast{
+  position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);
+  background:var(--ok);color:#fff;font-weight:600;font-size:14.5px;
+  padding:12px 22px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+  z-index:3000;white-space:nowrap;
+}
+.bp-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
 </head>
 <body>
@@ -1093,14 +1102,16 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
       <div class="toolbar no-print">
         <span class="count" id="bp-count">0 รายการ</span>
         <div class="actions">
-          <button class="btn secondary" id="bp-print">พิมพ์</button>
-          <button class="btn press" id="bp-save">บันทึกเป็น PDF</button>
+          <button class="btn secondary" id="bp-keep" title="เก็บรายการปัจจุบันไว้ในเบราว์เซอร์นี้ แม้รีเฟรชหน้าเว็บข้อมูลก็จะยังอยู่">เก็บข้อมูล</button>
+          <button class="btn secondary" id="bp-save">บันทึกเป็น PDF</button>
+          <button class="btn press" id="bp-print">พิมพ์</button>
         </div>
       </div>
       <div class="bp-doc-scroll">
         <div class="billdoc" id="billdoc"></div>
       </div>
     </div>
+    <div class="bp-toast" id="bp-toast"></div>
   </section>
 
   <div class="img-modal" id="imgModal" onclick="closeImageModal()">
@@ -3917,6 +3928,36 @@ setInterval(loadAll, 120000);
     renderBillDoc();
   }
 
+  /* ---- "เก็บข้อมูล" — persist the current bill items to this browser so they
+     survive a page refresh. Explicit/manual (only saves when the button is
+     clicked), not auto-saved on every edit. ---- */
+  const BP_STORAGE_KEY = 'billPlate_savedItems_v1';
+  let bpKeepMsgTimer = null;
+  function bpSaveToStorage(){
+    try{
+      localStorage.setItem(BP_STORAGE_KEY, JSON.stringify(bpItems));
+      setStatus('bp-status', 'ok', `เก็บข้อมูลไว้แล้ว (${bpItems.length} รายการ) — รีเฟรชหน้าเว็บแล้วข้อมูลจะยังอยู่`);
+      const toast = document.getElementById('bp-toast');
+      toast.textContent = 'บันทึกข้อมูล ตารางเรียบร้อยแล้ว ✓';
+      toast.classList.add('show');
+      clearTimeout(bpKeepMsgTimer);
+      bpKeepMsgTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+    }catch(e){
+      setStatus('bp-status', 'error', 'เก็บข้อมูลไม่สำเร็จ: ' + e.message);
+    }
+  }
+  function bpLoadFromStorage(){
+    try{
+      const raw = localStorage.getItem(BP_STORAGE_KEY);
+      if(!raw) return;
+      const saved = JSON.parse(raw);
+      if(Array.isArray(saved)) bpItems = saved;
+    }catch(e){
+      console.warn('โหลดรายการที่เก็บไว้ไม่สำเร็จ:', e.message);
+    }
+  }
+  document.getElementById('bp-keep').addEventListener('click', bpSaveToStorage);
+
   function renderBpEditor(){
     const body = document.getElementById('bp-editor-body');
     document.getElementById('bp-count').textContent = bpItems.length + ' รายการ';
@@ -4029,6 +4070,7 @@ setInterval(loadAll, 120000);
       </div>
     `;
   }
+  bpLoadFromStorage(); // restore any previously "เก็บข้อมูล"-saved items before the first render
   renderBpEditor();
   renderBillDoc(); // initial empty-state render so the doc isn't blank on first visit
 
