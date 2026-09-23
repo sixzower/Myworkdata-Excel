@@ -1240,6 +1240,56 @@ function initMonthYear(monthSelId, yearInputId){
 }
 ['bw','color','chartbw','postcard'].forEach(k => initMonthYear(k+'-month', k+'-year'));
 
+/* ============ LIVE MONTH/YEAR + DATE AUTO-FOLLOW ============
+   Keeps "เดือน/ปี" (and Bill Plate's "วันที่ส่ง") pinned to the real current
+   month/year/date as time passes — e.g. if the tab is left open across a
+   month or day rollover. Only nudges a field forward if it still holds the
+   value we last auto-set; if the person has manually picked a different
+   month/year/date, we leave their choice alone. */
+const liveMonthYearFields = [];
+function registerLiveMonthYear(monthEl, yearEl){
+  if(!monthEl) return;
+  const now = new Date();
+  liveMonthYearFields.push({ monthEl, yearEl, lastMonth: now.getMonth(), lastYear: now.getFullYear() });
+}
+const liveDateFields = [];
+function registerLiveDate(dateEl){
+  if(!dateEl) return;
+  liveDateFields.push({ dateEl, lastValue: dateEl.value });
+}
+function fireChange(el){ el.dispatchEvent(new Event('change', { bubbles: true })); }
+function fireInput(el){ el.dispatchEvent(new Event('input', { bubbles: true })); }
+
+function tickLiveMonthYear(){
+  const now = new Date();
+  const curMonth = now.getMonth(), curYear = now.getFullYear();
+
+  liveMonthYearFields.forEach(f => {
+    if(f.lastMonth === curMonth && f.lastYear === curYear) return; // no real-world change since last check
+    const monthStillAuto = parseInt(f.monthEl.value, 10) === f.lastMonth;
+    const yearStillAuto = !f.yearEl || parseInt(f.yearEl.value, 10) === f.lastYear;
+    if(monthStillAuto && yearStillAuto){
+      f.monthEl.value = curMonth;
+      if(f.yearEl) f.yearEl.value = curYear;
+      fireChange(f.monthEl);
+    }
+    f.lastMonth = curMonth;
+    f.lastYear = curYear;
+  });
+
+  const todayStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+  liveDateFields.forEach(f => {
+    if(f.dateEl.value === f.lastValue && f.lastValue !== todayStr){
+      f.dateEl.value = todayStr;
+      fireInput(f.dateEl);
+    }
+    f.lastValue = todayStr;
+  });
+}
+setInterval(tickLiveMonthYear, 60000);
+
+['bw','color','chartbw','postcard'].forEach(k => registerLiveMonthYear(document.getElementById(k+'-month'), document.getElementById(k+'-year')));
+
 /* ============ GOOGLE SHEETS FETCH ============ */
 const sheetCache = {};
 const SHEETS_API_KEY = 'AIzaSyBcA7XwCgucFFn7ywMcF9XZDkLJhNaE5co';
@@ -3653,6 +3703,8 @@ function populateCategoryFilter(){
   sel.value = cats.includes(prevVal) ? prevVal : 'all';
 }
 
+let sdbAutoMonthKey = null; // tracks the "current month" key we last auto-selected, for live-follow
+
 function populateMonthFilter(){
   const sel = document.getElementById('sdbMonth');
   const keys = new Map();
@@ -3675,9 +3727,19 @@ function populateMonthFilter(){
     html += '</optgroup>';
   });
   sel.innerHTML = html;
+
+  const nowKey = monthKey(new Date());
+  if(sdbAutoMonthKey === null) sdbAutoMonthKey = nowKey; // first run — start out following the real current month
+  const wasFollowingCurrent = (prevVal === sdbAutoMonthKey) || prevVal === '';
+
   if(sorted.length){
-    sel.value = sorted.some(([k])=>k===prevVal) ? prevVal : sorted[0][0];
+    if(wasFollowingCurrent && sorted.some(([k])=>k===nowKey)){
+      sel.value = nowKey; // real month rolled over and that month's data has appeared — follow it
+    } else {
+      sel.value = sorted.some(([k])=>k===prevVal) ? prevVal : sorted[0][0];
+    }
   }
+  sdbAutoMonthKey = nowKey;
 }
 
 function renderTable(){
@@ -3772,6 +3834,9 @@ setInterval(loadAll, 120000);
     document.getElementById('bp-date').value = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
   }
   initBpMonthYear();
+  registerLiveMonthYear(document.getElementById('bp-month'), document.getElementById('bp-year'));
+  registerLiveMonthYear(document.getElementById('bp-doc-month'), null);
+  registerLiveDate(document.getElementById('bp-date'));
 
   /* ---- pull this month's Plate BW rows into bpEntries (for the preview table) ---- */
   async function bpFetch(){
