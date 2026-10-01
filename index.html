@@ -223,6 +223,7 @@
   .status.loading{background:var(--status-loading-bg);color:var(--ink-soft);border-left-color:var(--ink-soft);}
   .status.error{background:var(--status-error-bg);color:var(--press-dark);border:1px solid var(--status-error-border);border-left:3px solid var(--press);}
   .status.ok{background:var(--status-ok-bg);color:var(--ok);border-left-color:var(--ok);}
+  .status.warn{background:var(--plate-soft);color:var(--plate);border-left-color:var(--plate);}
 
   table.report{
     width:100%;
@@ -429,7 +430,7 @@ html[data-theme="dark"] .sidebar{background:#141311;}
 .cl-form-col{min-width:0;}
 .cl-preview-col{position:sticky;top:20px;min-width:0;}
 .cl-doc-scroll{ max-height:calc(100vh - 110px); overflow-y:auto; overflow-x:auto; border-radius:6px; }
-@media print{ .cl-doc-scroll{ max-height:none; overflow:visible; } }
+@media print{ .cl-doc-scroll{ max-height:none; overflow:visible; } #panel-billplate .bp-doc-scroll{ overflow:visible; padding:0; } }
 @media(max-width:980px){.cl-layout{grid-template-columns:1fr;}.cl-preview-col{position:static;}}
 
 .cl-hint{font-size:12px;color:var(--ink-soft);margin-top:8px;}
@@ -513,6 +514,7 @@ html[data-theme="dark"] .cl-warn{background:#332711;border-color:#5a4420;color:#
 .img-modal-close{position:absolute;top:20px;right:24px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;}
 
 @media print{
+  body{background:#fff !important;}
   .doc{position:static;box-shadow:none;border:none;width:100%;}
   .cl-layout{display:block!important;}
   .doc table{page-break-inside:avoid;}
@@ -613,6 +615,12 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
 #panel-billplate #bp-preview-table .bp-add-btn:hover{background:var(--ok);color:#fff;}
 #panel-billplate #bp-editor-table input{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;background:var(--surface-white);color:var(--ink);}
 #panel-billplate #bp-editor-table td{padding:6px 6px;}
+#panel-billplate #bp-editor-table .bp-drag-cell{width:26px;text-align:center;padding:6px 2px;}
+#panel-billplate #bp-editor-table .bp-drag-handle{cursor:grab;user-select:none;font-size:15px;color:var(--ink-soft);display:inline-block;line-height:1;}
+#panel-billplate #bp-editor-table .bp-drag-handle:active{cursor:grabbing;}
+#panel-billplate #bp-editor-table tr[data-row-i]{transition:box-shadow .1s;}
+#panel-billplate #bp-editor-table tr.bp-dragging{opacity:.35;}
+#panel-billplate #bp-editor-table tr.bp-drag-over{box-shadow:inset 0 2px 0 var(--press), inset 0 -2px 0 var(--press);}
 #panel-billplate .bp-remove{background:none;border:1px solid var(--press);color:var(--press);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;}
 #panel-billplate .bp-remove:hover{background:var(--press);color:#fff;}
 #panel-billplate .bp-doc-scroll{overflow-x:auto;padding:6px 0;}
@@ -1095,8 +1103,8 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
       <h2 class="section-title" style="font-size:15px;">รายการในใบส่งงาน</h2>
       <div class="table-wrap">
         <table class="report" id="bp-editor-table">
-          <thead><tr><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>จำนวน</th><th>ขนาด</th><th>ประเภท</th><th>หมายเหตุ</th><th></th></tr></thead>
-          <tbody id="bp-editor-body"><tr class="empty-row"><td colspan="8">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr></tbody>
+          <thead><tr><th></th><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>จำนวน</th><th>ขนาด</th><th>ประเภท</th><th>หมายเหตุ</th><th></th></tr></thead>
+          <tbody id="bp-editor-body"><tr class="empty-row"><td colspan="9">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1292,6 +1300,32 @@ setInterval(tickLiveMonthYear, 60000);
 
 /* ============ GOOGLE SHEETS FETCH ============ */
 const sheetCache = {};
+const sheetCacheTs = {}; // key -> when that cache entry was fetched, for the TTL check below
+const CACHE_TTL_MS = 3 * 60 * 1000; // re-fetch at most every 3 minutes, so "ค้นหา" on an
+  // already-loaded month actually picks up new rows someone else added to the sheet,
+  // instead of silently showing the same snapshot for the rest of the browser session
+const SHEET_FALLBACK_PREFIX = 'sheetFallback_v1_';
+const lastFetchStale = {}; // key -> {stale, ts} set by fetchSheetRaw() each call, so a caller
+  // that wants to flag "this is last known data, not live" (see runMonthReport) can check it
+
+function saveSheetFallback(key, rows){
+  try{
+    localStorage.setItem(SHEET_FALLBACK_PREFIX + key, JSON.stringify({ rows, ts: Date.now() }));
+  }catch(e){ /* storage full/unavailable — just means no offline fallback next time, not fatal */ }
+}
+function loadSheetFallback(key){
+  try{
+    const raw = localStorage.getItem(SHEET_FALLBACK_PREFIX + key);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && Array.isArray(parsed.rows)) ? parsed : null;
+  }catch(e){ return null; }
+}
+function formatFallbackTime(ts){
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())} น.`;
+}
 const SHEETS_API_KEY = 'AIzaSyBcA7XwCgucFFn7ywMcF9XZDkLJhNaE5co';
 
 // --- Method A (primary): Google Sheets API v4, reading each cell's true value ---
@@ -1304,12 +1338,14 @@ const SHEETS_API_KEY = 'AIzaSyBcA7XwCgucFFn7ywMcF9XZDkLJhNaE5co';
 // (formattedValue = exactly what's displayed), sidestepping that pipeline
 // entirely, so this is now the primary path and CSV/gviz are fallbacks only.
 let sheetsApiDataPromise = null;
+let sheetsApiDataTs = 0;
 
 async function ensureSheetsApiDataLoaded(){
-  if(sheetsApiDataPromise) return sheetsApiDataPromise;
+  if(sheetsApiDataPromise && (Date.now() - sheetsApiDataTs) < CACHE_TTL_MS) return sheetsApiDataPromise;
   const fields = 'sheets(properties(sheetId),merges,data(rowData(values(formattedValue))))';
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(SHEETS_API_KEY)}`;
 
+  sheetsApiDataTs = Date.now();
   sheetsApiDataPromise = fetch(url)
     .then(res => res.ok ? res.json() : Promise.reject(new Error('HTTP ' + res.status)))
     .then(json => {
@@ -1330,6 +1366,7 @@ async function ensureSheetsApiDataLoaded(){
     })
     .catch(err => {
       sheetsApiDataPromise = null; // allow a retry later instead of caching the failure forever
+      sheetsApiDataTs = 0;
       console.warn('โหลดข้อมูลผ่าน Sheets API ไม่สำเร็จ, จะใช้ CSV แทน:', err.message);
       return null;
     });
@@ -1443,7 +1480,10 @@ function gvizToPlainRows(json){
 }
 
 async function fetchSheetRaw(key){
-  if(sheetCache[key]) return sheetCache[key];
+  if(sheetCache[key] && (Date.now() - (sheetCacheTs[key] || 0)) < CACHE_TTL_MS){
+    lastFetchStale[key] = { stale: false, ts: null };
+    return sheetCache[key];
+  }
 
   const apiData = await ensureSheetsApiDataLoaded();
   if(apiData){
@@ -1452,6 +1492,9 @@ async function fetchSheetRaw(key){
     if(entry){
       fillMergedCells(entry.rows, entry.merges);
       sheetCache[key] = entry.rows;
+      sheetCacheTs[key] = Date.now();
+      saveSheetFallback(key, entry.rows);
+      lastFetchStale[key] = { stale: false, ts: null };
       return entry.rows;
     }
   }
@@ -1469,10 +1512,23 @@ async function fetchSheetRaw(key){
       }
       rows = gvizToPlainRows(json);
     }catch(jsonErr){
+      // Every live method failed — fall back to the last successful copy this
+      // browser saved, if any, rather than leaving the caller with nothing.
+      const fallback = loadSheetFallback(key);
+      if(fallback){
+        sheetCache[key] = fallback.rows;
+        sheetCacheTs[key] = Date.now(); // avoid hammering the dead connection again right away
+        lastFetchStale[key] = { stale: true, ts: fallback.ts };
+        return fallback.rows;
+      }
+      lastFetchStale[key] = { stale: false, ts: null };
       throw new Error('เชื่อมต่อ Google Sheet ไม่สำเร็จ ตรวจสอบว่าชีทเปิดสิทธิ์ "ใครมีลิงก์ก็ดูได้" และตรวจสอบอินเทอร์เน็ต');
     }
   }
   sheetCache[key] = rows;
+  sheetCacheTs[key] = Date.now();
+  saveSheetFallback(key, rows);
+  lastFetchStale[key] = { stale: false, ts: null };
   return rows;
 }
 
@@ -1639,7 +1695,12 @@ async function runMonthReport(tabKey){
 
   renderMonthTable(tabKey, def, filtered);
   countEl.textContent = `พบ ${filtered.length} รายการ`;
-  setStatus(statusId, 'ok', `ดึงข้อมูลสำเร็จ — ${def.title(monthIdx, gYear)}`);
+  const staleInfo = lastFetchStale[def.sheetKey];
+  if(staleInfo && staleInfo.stale){
+    setStatus(statusId, 'warn', `⚠ เชื่อมต่อ Google Sheet ไม่สำเร็จตอนนี้ — กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุดเมื่อ ${formatFallbackTime(staleInfo.ts)} (ไม่ใช่ข้อมูลสด)`);
+  } else {
+    setStatus(statusId, 'ok', `ดึงข้อมูลสำเร็จ — ${def.title(monthIdx, gYear)}`);
+  }
   resultPanel.style.display = '';
   const searchInput = document.getElementById(tabKey + '-quicksearch');
   if(searchInput){
@@ -1740,9 +1801,10 @@ function setupQuickSearch(tabKey){
    entry's month and loads it. Complements applyQuickSearch above (which
    still filters the currently-loaded month's rows once one is fetched). ============ */
 const fullSheetCache = {}; // tabKey -> array of {r, rowIndex}, the whole sheet's data rows
+const fullSheetCacheTs = {}; // tabKey -> when it was fetched, for the same TTL as fetchSheetRaw
 
 async function ensureFullSheetLoaded(tabKey){
-  if(fullSheetCache[tabKey]) return fullSheetCache[tabKey];
+  if(fullSheetCache[tabKey] && (Date.now() - (fullSheetCacheTs[tabKey] || 0)) < CACHE_TTL_MS) return fullSheetCache[tabKey];
   const def = REPORT_DEFS[tabKey];
   const rows = await fetchSheetRaw(def.sheetKey);
   const headerIdx = findHeaderRowIndex(rows, def.headerKeywords);
@@ -1751,6 +1813,7 @@ async function ensureFullSheetLoaded(tabKey){
     .map((r, i) => ({ r, rowIndex: dataStart + i }))
     .filter(({r}) => cellText(r[1]).trim() !== '');
   fullSheetCache[tabKey] = dataRows;
+  fullSheetCacheTs[tabKey] = Date.now();
   return dataRows;
 }
 
@@ -2027,6 +2090,7 @@ document.querySelectorAll('.combined-download-btn').forEach(btn => {
 
 /* ============ POSTCARD (search & add) ============ */
 let postcardRows = null; // array of {r, rowIndex} — raw data rows (after header) with original sheet position kept for formatting lookups
+let postcardRowsTs = 0; // when postcardRows was fetched, for the same TTL as fetchSheetRaw
 let postcardCart = [];   // array of {r, rowIndex} entries added to the report
 
 const PC_COLS = [
@@ -2045,7 +2109,7 @@ const PC_SUM_COLS = [4,5,6,7,8];
 const PC_STYLED_COLS = [3]; // เคลือบ — only this column carries over color/bold from the sheet
 
 async function ensurePostcardLoaded(){
-  if(postcardRows) return postcardRows;
+  if(postcardRows && (Date.now() - postcardRowsTs) < CACHE_TTL_MS) return postcardRows;
   const rows = await fetchSheetRaw('postcard');
   const headerIdx = findHeaderRowIndex(rows, ['ลำดับที่', 'ลำดับ']);
   // gviz already excludes the header row from the returned data in most cases,
@@ -2054,6 +2118,7 @@ async function ensurePostcardLoaded(){
   postcardRows = rows.slice(dataStart)
     .map((r, i) => ({ r, rowIndex: dataStart + i }))
     .filter(({r}) => r[1] && cellText(r[1]).trim() !== '');
+  postcardRowsTs = Date.now();
   return postcardRows;
 }
 
@@ -3874,10 +3939,15 @@ setInterval(loadAll, 120000);
       .sort((a, b) => a.date.d - b.date.d);
 
     const found = bpEntries.length > 0;
-    setStatus('bp-status', found ? 'ok' : 'error',
-      found
-        ? `ดึงข้อมูลสำเร็จ — พบ ${bpEntries.length} เรื่องใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`
-        : `ไม่พบข้อมูลใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`);
+    const staleInfo = lastFetchStale['bw'];
+    if(staleInfo && staleInfo.stale){
+      setStatus('bp-status', 'warn', `⚠ เชื่อมต่อ Google Sheet ไม่สำเร็จตอนนี้ — กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุดเมื่อ ${formatFallbackTime(staleInfo.ts)} (ไม่ใช่ข้อมูลสด) พบ ${bpEntries.length} เรื่อง`);
+    } else {
+      setStatus('bp-status', found ? 'ok' : 'error',
+        found
+          ? `ดึงข้อมูลสำเร็จ — พบ ${bpEntries.length} เรื่องใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`
+          : `ไม่พบข้อมูลใน Plate BW เดือน ${THAI_MONTHS[monthIdx]} ${gYear}`);
+    }
     renderBpPreview();
   }
   document.getElementById('bp-fetch').addEventListener('click', bpFetch);
@@ -4039,11 +4109,12 @@ setInterval(loadAll, 120000);
     const body = document.getElementById('bp-editor-body');
     document.getElementById('bp-count').textContent = bpItems.length + ' รายการ';
     if(!bpItems.length){
-      body.innerHTML = '<tr class="empty-row"><td colspan="8">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">ยังไม่มีรายการ — ค้นหาแล้วกดเพิ่มเรื่องด้านบน</td></tr>';
       return;
     }
     body.innerHTML = bpItems.map((it, i) => `
-      <tr>
+      <tr data-row-i="${i}">
+        <td class="bp-drag-cell"><span class="bp-drag-handle" title="ลากเพื่อสลับลำดับ">⠿</span></td>
         <td class="num">${i+1}</td>
         <td><input type="text" data-i="${i}" data-f="title" value="${bpEscapeAttr(it.title)}"></td>
         <td style="width:80px;"><input type="text" data-i="${i}" data-f="volume" value="${bpEscapeAttr(it.volume)}"></td>
@@ -4082,6 +4153,63 @@ setInterval(loadAll, 120000);
     const btn = e.target.closest('button[data-remove]');
     if(!btn) return;
     removeBpItem(parseInt(btn.dataset.remove, 10));
+  });
+
+  // drag-to-reorder: dragging is only armed by mousedown on the ⠿ handle (not
+  // the whole row), so clicking/selecting text in the input fields never
+  // accidentally starts a drag. Dropping on another row moves the item there
+  // and re-renders, which recomputes every row's ลำดับ number automatically.
+  let bpDragFromIndex = null;
+  const bpEditorBody = document.getElementById('bp-editor-body');
+
+  bpEditorBody.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.bp-drag-handle');
+    if(!handle) return;
+    const tr = handle.closest('tr[data-row-i]');
+    if(tr) tr.draggable = true;
+  });
+  bpEditorBody.addEventListener('mouseup', () => {
+    bpEditorBody.querySelectorAll('tr[draggable="true"]').forEach(tr => { tr.draggable = false; });
+  });
+
+  bpEditorBody.addEventListener('dragstart', (e) => {
+    const tr = e.target.closest('tr[data-row-i]');
+    if(!tr) return;
+    bpDragFromIndex = parseInt(tr.dataset.rowI, 10);
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain', String(bpDragFromIndex)); }catch(err){ /* some browsers need this call to exist even if unused */ }
+    tr.classList.add('bp-dragging');
+  });
+
+  bpEditorBody.addEventListener('dragover', (e) => {
+    if(bpDragFromIndex === null) return;
+    e.preventDefault(); // required to allow dropping at all
+    e.dataTransfer.dropEffect = 'move';
+    const tr = e.target.closest('tr[data-row-i]');
+    bpEditorBody.querySelectorAll('tr.bp-drag-over').forEach(el => el.classList.remove('bp-drag-over'));
+    if(tr) tr.classList.add('bp-drag-over');
+  });
+
+  bpEditorBody.addEventListener('drop', (e) => {
+    e.preventDefault();
+    bpEditorBody.querySelectorAll('tr.bp-drag-over').forEach(el => el.classList.remove('bp-drag-over'));
+    const tr = e.target.closest('tr[data-row-i]');
+    const fromIndex = bpDragFromIndex;
+    bpDragFromIndex = null;
+    if(!tr || fromIndex === null) return;
+    const toIndex = parseInt(tr.dataset.rowI, 10);
+    if(Number.isNaN(toIndex) || toIndex === fromIndex) return;
+    const [moved] = bpItems.splice(fromIndex, 1);
+    bpItems.splice(toIndex, 0, moved);
+    renderBpEditor();
+    renderBillDoc();
+  });
+
+  bpEditorBody.addEventListener('dragend', (e) => {
+    const tr = e.target.closest('tr[data-row-i]');
+    if(tr){ tr.classList.remove('bp-dragging'); tr.draggable = false; }
+    bpEditorBody.querySelectorAll('tr.bp-drag-over').forEach(el => el.classList.remove('bp-drag-over'));
+    bpDragFromIndex = null;
   });
 
   ['bp-doc-month','bp-date','bp-signer'].forEach(id => {
