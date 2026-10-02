@@ -624,6 +624,8 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
 #panel-billplate .bp-remove{background:none;border:1px solid var(--press);color:var(--press);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;}
 #panel-billplate .bp-remove:hover{background:var(--press);color:#fff;}
 #panel-billplate .bp-doc-scroll{overflow-x:auto;padding:6px 0;}
+#panel-billplate .bp-date-warn{display:block;margin-top:4px;font-size:11.5px;color:var(--plate);}
+#panel-billplate input#bp-date.bp-date-invalid{border-color:var(--plate);}
 @media(max-width:720px){#panel-billplate .field{width:100%;}}
 
 /* the printable bill document — self-contained visual replica of the LUCKPIM
@@ -661,6 +663,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
   z-index:3000;white-space:nowrap;
 }
 .bp-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.bp-toast.toast-danger{background:var(--press);}
 </style>
 </head>
 <body>
@@ -818,6 +821,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
   </section>
 
   <section id="panel-postcard" class="tab-panel" style="display:none;">
+    <div class="bp-toast" id="postcard-toast"></div>
     <div class="panel no-print">
       <h2 class="section-title">สรุปยอด พิมพ์ โปสการ์ด</h2>
       <p class="section-note">ดึงข้อมูลทั้งเดือนอัตโนมัติ หรือค้นหาชื่องานแล้วเพิ่มเองทีละรายการ</p>
@@ -1094,6 +1098,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         <div class="field">
           <label>วันที่ส่ง</label>
           <input type="text" id="bp-date" placeholder="d/m/yyyy">
+          <small id="bp-date-warn" class="bp-date-warn" style="display:none;">⚠ รูปแบบวันที่อาจไม่ถูกต้อง (ใช้ d/m/yyyy)</small>
         </div>
       </div>
       <div id="bp-status"></div>
@@ -1585,6 +1590,20 @@ function setStatus(elId, kind, msg){
   const el = document.getElementById(elId);
   if(!msg){ el.innerHTML = ''; return; }
   el.innerHTML = `<div class="status ${kind}">${msg}</div>`;
+}
+
+// small floating confirmation (reuses the .bp-toast look) — e.g. "เพิ่มแล้ว" /
+// "ลบแล้ว" after clicking + or ลบ, so the click has visible, immediate feedback.
+// kind: 'ok' (default, green) or 'danger' (red, for removals)
+const toastTimers = {};
+function showToast(elId, msg, kind){
+  const toast = document.getElementById(elId);
+  if(!toast) return;
+  toast.textContent = msg;
+  toast.classList.toggle('toast-danger', kind === 'danger');
+  toast.classList.add('show');
+  clearTimeout(toastTimers[elId]);
+  toastTimers[elId] = setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
 /* ============ GENERIC MONTH-FILTERED REPORT (BW / COLOR / CHARTBW) ============ */
@@ -2155,7 +2174,7 @@ document.getElementById('postcard-fetch-month').addEventListener('click', async 
 
   renderPostcardTable();
   if(matches.length === 0){
-    setStatus('postcard-status', 'error', `ไม่พบรายการที่พิมพ์ในเดือน ${THAI_MONTHS[monthIdx]} ${gYear}`);
+    setStatus('postcard-status', 'ok', `ไม่พบรายการที่พิมพ์ในเดือน ${THAI_MONTHS[monthIdx]} ${gYear}`);
   } else {
     setStatus('postcard-status', 'ok', `พบ ${matches.length} รายการในเดือนนี้ — เพิ่มเข้ารายงานใหม่ ${added} รายการ (ที่เหลือมีอยู่แล้ว)`);
   }
@@ -2213,8 +2232,10 @@ document.getElementById('postcard-results').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-add]');
   if(!btn) return;
   const idx = parseInt(btn.dataset.add, 10);
-  postcardCart.push(postcardRows[idx]);
+  const entry = postcardRows[idx];
+  postcardCart.push(entry);
   renderPostcardTable();
+  showToast('postcard-toast', `เพิ่ม "${cellText(entry.r[1])}" แล้ว ✓`);
   const resultsEl = document.getElementById('postcard-results');
   resultsEl.classList.remove('open');
   resultsEl.innerHTML = '';
@@ -2245,42 +2266,49 @@ function renderPostcardTable(){
   const resultPanel = document.getElementById('postcard-result-panel');
   const countEl = document.getElementById('postcard-count');
 
-  if(postcardCart.length === 0){
-    resultPanel.style.display = 'none';
-    return;
-  }
-
+  // Always render the table (headers included) even with zero rows, same as
+  // the Plate B|W / Color / Digital tabs — only the status tone/wording below
+  // told the user "nothing found" before; the table itself used to just
+  // disappear instead of showing an empty state, which looked inconsistent.
   let html = '<table class="report" id="postcard-table"><thead><tr>';
   PC_COLS.forEach(c => { html += `<th class="${c.num?'num':''}">${c.label}</th>`; });
   html += '<th class="no-print"></th></tr></thead><tbody>';
 
-  postcardCart.forEach((entry, i) => {
-    const r = entry.r;
-    html += '<tr>';
+  if(postcardCart.length === 0){
+    html += `<tr class="empty-row"><td colspan="${PC_COLS.length + 1}">ไม่พบข้อมูลในช่วงเดือนที่เลือก</td></tr>`;
+  } else {
+    postcardCart.forEach((entry, i) => {
+      const r = entry.r;
+      html += '<tr>';
+      PC_COLS.forEach(c => {
+        if(c.type === 'index'){
+          html += `<td class="num">${i+1}</td>`;
+        } else {
+          const val = cellDisplay(r[c.idx]);
+          const style = PC_STYLED_COLS.includes(c.idx) ? keywordStyle(val) : '';
+          html += `<td class="${c.num?'num':''} ${c.idx===1?'title-cell':''}"${style ? ` style="${style}"` : ''}>${escapeHtml(val)}</td>`;
+        }
+      });
+      html += `<td class="no-print"><button class="btn-sm danger" data-remove="${i}">ลบ</button></td>`;
+      html += '</tr>';
+    });
+  }
+  html += '</tbody>';
+
+  if(postcardCart.length){
+    html += '<tfoot><tr>';
     PC_COLS.forEach(c => {
-      if(c.type === 'index'){
-        html += `<td class="num">${i+1}</td>`;
+      if(c.type === 'index'){ html += '<td>รวม</td>'; return; }
+      if(PC_SUM_COLS.includes(c.idx)){
+        const sum = postcardCart.reduce((acc, entry) => acc + cellNum(entry.r[c.idx]), 0);
+        html += `<td class="num">${sum.toLocaleString()}</td>`;
       } else {
-        const val = cellDisplay(r[c.idx]);
-        const style = PC_STYLED_COLS.includes(c.idx) ? keywordStyle(val) : '';
-        html += `<td class="${c.num?'num':''} ${c.idx===1?'title-cell':''}"${style ? ` style="${style}"` : ''}>${escapeHtml(val)}</td>`;
+        html += '<td></td>';
       }
     });
-    html += `<td class="no-print"><button class="btn-sm danger" data-remove="${i}">ลบ</button></td>`;
-    html += '</tr>';
-  });
-
-  html += '</tbody><tfoot><tr>';
-  PC_COLS.forEach(c => {
-    if(c.type === 'index'){ html += '<td>รวม</td>'; return; }
-    if(PC_SUM_COLS.includes(c.idx)){
-      const sum = postcardCart.reduce((acc, entry) => acc + cellNum(entry.r[c.idx]), 0);
-      html += `<td class="num">${sum.toLocaleString()}</td>`;
-    } else {
-      html += '<td></td>';
-    }
-  });
-  html += '<td class="no-print"></td></tr></tfoot></table>';
+    html += '<td class="no-print"></td></tr></tfoot>';
+  }
+  html += '</table>';
 
   wrap.innerHTML = html;
   countEl.textContent = `เพิ่มแล้ว ${postcardCart.length} รายการ`;
@@ -2291,8 +2319,10 @@ document.getElementById('postcard-table-wrap').addEventListener('click', (e) => 
   const btn = e.target.closest('button[data-remove]');
   if(!btn) return;
   const idx = parseInt(btn.dataset.remove, 10);
+  const removed = postcardCart[idx];
   postcardCart.splice(idx, 1);
   renderPostcardTable();
+  if(removed) showToast('postcard-toast', `ลบ "${cellText(removed.r[1])}" แล้ว`, 'danger');
 });
 
 /* ============ CTP (QC) CHECKLIST TAB — merged from ctp-checklist-generator.html ============ */
@@ -3878,6 +3908,9 @@ setInterval(loadAll, 120000);
 
   let bpEntries = [];  // {title, volume, size, type, qty} pulled from Plate BW for the selected month
   let bpItems = [];    // {title, volume, qty, size, type, note} — rows currently in the bill
+  let bpDirty = false;  // true once bpItems changes after the last "เก็บข้อมูล" save — drives the
+                         // leave-page warning below so an accidental tab-close/refresh doesn't
+                         // silently lose anything added since the last save
 
   function bpEscapeAttr(s){
     return (s || '').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4065,14 +4098,19 @@ setInterval(loadAll, 120000);
       type: en.type === '-' ? '' : en.type,
       note: ''
     });
+    bpDirty = true;
     renderBpEditor();
     renderBillDoc();
+    showToast('bp-toast', `เพิ่ม "${en.title}" แล้ว ✓`);
   }
 
   function removeBpItem(i){
+    const removed = bpItems[i];
     bpItems.splice(i, 1);
+    bpDirty = true;
     renderBpEditor();
     renderBillDoc();
+    if(removed) showToast('bp-toast', `ลบ "${removed.title}" แล้ว`, 'danger');
   }
 
   /* ---- "เก็บข้อมูล" — persist the current bill items to this browser so they
@@ -4083,6 +4121,7 @@ setInterval(loadAll, 120000);
   function bpSaveToStorage(){
     try{
       localStorage.setItem(BP_STORAGE_KEY, JSON.stringify(bpItems));
+      bpDirty = false;
       setStatus('bp-status', 'ok', `เก็บข้อมูลไว้แล้ว (${bpItems.length} รายการ) — รีเฟรชหน้าเว็บแล้วข้อมูลจะยังอยู่`);
       const toast = document.getElementById('bp-toast');
       toast.textContent = 'บันทึกข้อมูล ตารางเรียบร้อยแล้ว ✓';
@@ -4104,6 +4143,14 @@ setInterval(loadAll, 120000);
     }
   }
   document.getElementById('bp-keep').addEventListener('click', bpSaveToStorage);
+
+  // warn before leaving the page (close tab/refresh/back) if there are
+  // changes since the last "เก็บข้อมูล" — otherwise they'd vanish silently
+  window.addEventListener('beforeunload', (e) => {
+    if(!bpDirty || !bpItems.length) return;
+    e.preventDefault();
+    e.returnValue = ''; // required by Chrome for the native confirm dialog to appear
+  });
 
   function renderBpEditor(){
     const body = document.getElementById('bp-editor-body');
@@ -4133,6 +4180,7 @@ setInterval(loadAll, 120000);
     const i = parseInt(inp.dataset.i, 10);
     if(!bpItems[i]) return;
     bpItems[i][inp.dataset.f] = inp.value;
+    bpDirty = true;
     renderBillDoc();
   });
 
@@ -4201,6 +4249,7 @@ setInterval(loadAll, 120000);
     if(Number.isNaN(toIndex) || toIndex === fromIndex) return;
     const [moved] = bpItems.splice(fromIndex, 1);
     bpItems.splice(toIndex, 0, moved);
+    bpDirty = true;
     renderBpEditor();
     renderBillDoc();
   });
@@ -4217,6 +4266,30 @@ setInterval(loadAll, 120000);
     el.addEventListener('input', renderBillDoc);
     el.addEventListener('change', renderBillDoc);
   });
+
+  // light "does this look like a real d/m/yyyy date" check — doesn't block
+  // typing or force a native date picker (which would change the format this
+  // prints in), just flags an obvious typo before it ends up on the printed
+  // bill, e.g. "31/13/2026" or stray letters.
+  function bpValidateDate(){
+    const input = document.getElementById('bp-date');
+    const warn = document.getElementById('bp-date-warn');
+    const val = input.value.trim();
+    let ok = true;
+    if(val !== ''){
+      const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if(!m){
+        ok = false;
+      } else {
+        const d = parseInt(m[1], 10), mo = parseInt(m[2], 10);
+        if(d < 1 || d > 31 || mo < 1 || mo > 12) ok = false;
+      }
+    }
+    input.classList.toggle('bp-date-invalid', !ok);
+    warn.style.display = ok ? 'none' : '';
+  }
+  document.getElementById('bp-date').addEventListener('input', bpValidateDate);
+  bpValidateDate(); // check the auto-filled default too, just in case
 
   /* ---- render the printable document itself ---- */
   function renderBillDoc(){
