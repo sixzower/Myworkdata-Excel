@@ -311,6 +311,23 @@
   .qs-suggest .qs-opt .qs-meta{color:var(--ink-soft);font-size:11.5px;white-space:nowrap;flex:none;margin-left:8px;}
   .qs-suggest .qs-empty{padding:10px 12px;font-size:12.5px;color:var(--ink-soft);font-style:italic;}
 
+  /* Postcard dropdown — same look as the B|W dropdown, with more detail per row */
+  #postcard-results{max-height:340px;}
+  #postcard-results .qs-opt{align-items:center;}
+  #postcard-results .pc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+  #postcard-results .pc-title{font-weight:600;line-height:1.35;word-break:break-word;}
+  #postcard-results .pc-sub{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--ink-soft);}
+  #postcard-results .pc-sub b{color:var(--ink);font-weight:600;}
+  #postcard-results .pc-side{flex:none;display:flex;align-items:center;gap:10px;text-align:right;}
+  #postcard-results .pc-date{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
+  #postcard-results .pc-total{font-size:12px;color:var(--ink);white-space:nowrap;}
+  #postcard-results .pc-total b{color:var(--press);}
+  #postcard-results .pc-add{min-width:78px;color:var(--ok);border-color:var(--ok);}
+  #postcard-results .pc-add:hover{background:var(--ok);color:#fff;}
+  #postcard-results .qs-opt.added{background:var(--surface-stripe);}
+  #postcard-results .qs-opt.added .pc-add{color:var(--ink-soft);border-color:var(--line);background:none;cursor:default;}
+  @media(max-width:520px){#postcard-results .qs-opt{flex-wrap:wrap;}#postcard-results .pc-side{width:100%;justify-content:space-between;}}
+
   h2.section-title{
     font-size:17px;
     margin:0 0 5px;
@@ -1080,7 +1097,7 @@ html[data-theme="dark"] #panel-checklist .cl-choice-opts label:has(input:checked
         </div>
         <div class="table-wrap" id="bp-preview-tablewrap">
           <table class="report" id="bp-preview-table">
-            <thead><tr><th>#</th><th>ชื่อเรื่อง</th><th>เล่ม</th><th>ขนาด</th><th>ประเภท</th><th>ยก</th><th>วันที่รับ</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th style="width:34%;">ชื่อเรื่อง</th><th>เล่ม</th><th>ขนาด</th><th>ประเภท</th><th>ยก</th><th>วันที่รับ</th><th style="width:16%;">หมายเหตุ</th><th></th></tr></thead>
             <tbody id="bp-preview-body"></tbody>
           </table>
         </div>
@@ -1777,6 +1794,17 @@ function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// A "เล่ม" value like "เล่มเดียวจบ" (complete in a single volume / one-shot)
+// already says everything it needs to — showing "เล่ม เล่มเดียวจบ" would be
+// redundant, so skip the "เล่ม " prefix for values like that and show the
+// sheet's text as-is. Returns already-HTML-escaped text, ready to insert.
+function formatVolumeLabel(vol){
+  const v = (vol || '').toString().trim();
+  if(!v || v === '-') return '';
+  if(v.includes('จบ')) return escapeHtml(v);
+  return `เล่ม ${escapeHtml(v)}`;
+}
+
 /* ============ QUICK SEARCH (client-side filter on the already-fetched table) ============ */
 // Filters the visible rows of a month's report table by "ชื่อเรื่อง"/"เล่ม" — no
 // re-fetch, just show/hide <tr> elements already in the DOM.
@@ -1865,7 +1893,7 @@ function setupTitleJumpSearch(tabKey){
         const vol = cellText(en.r[3]).trim();
         const d = parseDateCell(en.r[def.dateColIndex]);
         const dateLabel = d ? `${THAI_MONTHS_SHORT[d.m]} ${d.y}` : '';
-        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>เล่ม ${escapeHtml(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
+        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>${formatVolumeLabel(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
       }).join('');
     }
     box.classList.add('open');
@@ -1884,6 +1912,7 @@ function setupTitleJumpSearch(tabKey){
     if(d){
       document.getElementById(tabKey + '-month').value = d.m;
       document.getElementById(tabKey + '-year').value = d.y;
+      syncPeriodFrom(tabKey);
       await runMonthReport(tabKey);
       const panel = document.getElementById(tabKey + '-result-panel');
       if(panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1940,11 +1969,27 @@ function cssColorToArgb(cssColor){
 }
 
 const THIN_BORDER = { style: 'thin', color: { argb: 'FF9A9A9A' } };
+const BODY_FONT = 'Calibri';
+const BODY_SIZE = 10;      // table data
+const HEAD_SIZE = 11;      // column headers
+const TITLE_SIZE = 14;     // merged report title
+// rough display width of a string in Excel column units (Thai combining marks take no width)
+function excelTextWidth(str){
+  let w = 0;
+  for(const ch of String(str)){
+    if(/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/.test(ch)) continue;
+    w += /[\u0E00-\u0E7F]/.test(ch) ? 0.95 : (/[A-Z0-9]/.test(ch) ? 1.0 : 0.92);
+  }
+  return w;
+}
 
 // Builds one worksheet from an HTML <table> (thead/tbody/tfoot), reproducing
 // the on-screen alignment, bold, text color and background color.
+const TITLE_COL_WIDTH = 65;      // fixed width of the ชื่อเรื่อง column
+
 function addTableAsWorksheet(workbook, table, sheetName, reportTitle=''){
   const ws = workbook.addWorksheet(sanitizeSheetName(sheetName));
+  const skipEmptyRow = table.id === 'chartbw-table'; // Digital: no "ไม่พบข้อมูล…" row in the file
 
   // Add a single merged title row above the table header for exported Excel files.
   // This affects Excel exports only; the on-screen HTML table remains unchanged.
@@ -1955,7 +2000,7 @@ function addTableAsWorksheet(workbook, table, sheetName, reportTitle=''){
       ws.mergeCells(1, 1, 1, columnCount);
       const titleCell = ws.getCell(1, 1);
       titleCell.value = reportTitle;
-      titleCell.font = { bold: true, size: 16 };
+      titleCell.font = { name: BODY_FONT, bold: true, size: TITLE_SIZE };
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFE9D8' } };
       titleCell.border = { top: THIN_BORDER, left: THIN_BORDER, bottom: THIN_BORDER, right: THIN_BORDER };
@@ -1963,13 +2008,29 @@ function addTableAsWorksheet(workbook, table, sheetName, reportTitle=''){
     }
   }
 
+  const rowKinds = {}; // excel row number -> 'head' | 'body' | 'foot'
   function addRow(trEl, kind){
     const cells = Array.from(trEl.children).filter(td => !td.classList.contains('no-print'));
-    const row = ws.addRow(cells.map(td => td.textContent.trim()));
+    // any cell that is purely a number (เล่ม, ยก, ลำดับที่, totals ...) is written as a
+    // real number — text-typed digits are what trigger Excel's green
+    // "Number Stored as Text" warning. Mixed cells like "เล่มเดียว", "4 สี",
+    // "925x740", dates, and titles stay text.
+    const values = cells.map(td => {
+      const t = td.textContent.trim();
+      if(td.classList.contains('title-cell')) return t;
+      const cleaned = td.classList.contains('num') ? t.replace(/,/g, '') : t;
+      if(/^-?(0|[1-9]\d{0,14})(\.\d+)?$/.test(cleaned)) return Number(cleaned);
+      return t;
+    });
+    const row = ws.addRow(values);
+    rowKinds[row.number] = kind;
     cells.forEach((td, i) => {
       const cell = row.getCell(i + 1);
       const inline = parseInlineStyle(td.getAttribute('style') || '');
       const isNum = td.classList.contains('num');
+      if(typeof values[i] === 'number'){
+        cell.numFmt = Number.isInteger(values[i]) ? (isNum ? '#,##0' : '0') : '#,##0.##';
+      }
 
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
@@ -1986,7 +2047,8 @@ function addTableAsWorksheet(workbook, table, sheetName, reportTitle=''){
         fillColor = fillColor || 'FFEFE9D8';
       }
 
-      cell.font = fontColor ? { bold, color: { argb: fontColor } } : { bold };
+      const fSize = kind === 'head' ? HEAD_SIZE : BODY_SIZE;
+      cell.font = fontColor ? { name: BODY_FONT, size: fSize, bold, color: { argb: fontColor } } : { name: BODY_FONT, size: fSize, bold };
       if(fillColor){
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
       }
@@ -1995,16 +2057,60 @@ function addTableAsWorksheet(workbook, table, sheetName, reportTitle=''){
   }
 
   table.querySelectorAll('thead tr').forEach(tr => addRow(tr, 'head'));
-  table.querySelectorAll('tbody tr').forEach(tr => addRow(tr, 'body'));
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    if(skipEmptyRow && tr.classList.contains('empty-row')) return;
+    addRow(tr, 'body');
+  });
   table.querySelectorAll('tfoot tr').forEach(tr => addRow(tr, 'foot'));
 
-  const headerCells = Array.from(table.querySelectorAll('thead tr')[0]?.children || [])
-    .filter(td => !td.classList.contains('no-print'));
-  ws.columns.forEach((col, i) => {
-    const headerLen = headerCells[i] ? headerCells[i].textContent.trim().length : 10;
-    col.width = Math.max(10, Math.min(30, headerLen + 6));
+  // column widths sized to the widest content, so text never spills over/under the next
+  // column; very long titles wrap inside a capped width and the row grows to fit
+  const MAX_W = 55, MIN_W = 10;
+  const firstRowOffset = reportTitle ? 2 : 1; // title row + header row
+  const widths = [];
+  ws.eachRow((row, rowNumber) => {
+    if(reportTitle && rowNumber === 1) return; // merged title doesn't size columns
+    const isHead = rowKinds[rowNumber] === 'head';
+    row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      // header text is bold + larger, so measure it wider to make sure it fits its column
+      const raw = cell.value === null || cell.value === undefined ? '' : cell.value;
+      const w = excelTextWidth(raw) * (isHead ? 1.25 : 1) + 3;
+      widths[colNumber] = Math.max(widths[colNumber] || MIN_W, w);
+    });
   });
-  if(ws.columns[1]) ws.columns[1].width = Math.max(ws.columns[1].width || 0, 26); // ชื่อเรื่อง column, usually the longest
+  ws.columns.forEach((col, i) => { col.width = Math.max(MIN_W, Math.min(MAX_W, widths[i + 1] || MIN_W)); });
+  const headerLabels = Array.from(table.querySelectorAll('thead tr')[0]?.children || [])
+    .filter(td => !td.classList.contains('no-print')).map(td => td.textContent.trim());
+  const titleColIdx = headerLabels.findIndex(l => l === 'ชื่อเรื่อง' || l === 'เรื่อง') + 1; // 1-based, 0 = none
+  if(titleColIdx > 0) ws.getColumn(titleColIdx).width = TITLE_COL_WIDTH;
+  ws.eachRow((row, rowNumber) => {
+    if(reportTitle && rowNumber === 1) return;
+    const kind = rowKinds[rowNumber];
+    if(kind === 'head'){
+      let hl = 1;
+      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        const colW = ws.getColumn(colNumber).width || MIN_W;
+        const need = Math.ceil((excelTextWidth(cell.value === null || cell.value === undefined ? '' : cell.value) * 1.25 + 1.5) / Math.max(1, colW - 1.5));
+        if(need > hl) hl = need;
+      });
+      row.height = Math.max(20, hl * 15 + 5);   // header: grows only if a name can't fit
+      return;
+    }
+    // data rows: always 15, unless the title itself is too long for its column and must wrap
+    let lines = 1;
+    if(titleColIdx > 0){
+      const cell = row.getCell(titleColIdx);
+      const raw = cell.value === null || cell.value === undefined ? '' : cell.value;
+      const colW = ws.getColumn(titleColIdx).width || TITLE_COL_WIDTH;
+      lines = Math.max(1, Math.ceil((excelTextWidth(raw) + 1.5) / Math.max(1, colW - 1.5)));
+    }
+    row.height = lines === 1 ? 15 : lines * 13 + 2;
+  });
+
+  // keep title + header visible when scrolling; print neatly on one page width
+  ws.views = [{ state: 'frozen', ySplit: firstRowOffset, showGridLines: true }];
+  ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true };
+  ws.pageSetup.printTitlesRow = `1:${firstRowOffset}`;
 
   return ws;
 }
@@ -2141,7 +2247,7 @@ async function ensurePostcardLoaded(){
   return postcardRows;
 }
 
-document.getElementById('postcard-fetch-month').addEventListener('click', async () => {
+async function runPostcardMonth(){
   const monthIdx = parseInt(document.getElementById('postcard-month').value, 10);
   const gYear = parseInt(document.getElementById('postcard-year').value, 10);
 
@@ -2178,11 +2284,19 @@ document.getElementById('postcard-fetch-month').addEventListener('click', async 
   } else {
     setStatus('postcard-status', 'ok', `พบ ${matches.length} รายการในเดือนนี้ — เพิ่มเข้ารายงานใหม่ ${added} รายการ (ที่เหลือมีอยู่แล้ว)`);
   }
-});
+}
+document.getElementById('postcard-fetch-month').addEventListener('click', runPostcardMonth);
 
-document.getElementById('postcard-search').addEventListener('input', async (e) => {
-  const q = e.target.value.trim().toLowerCase();
+function pcSubItem(label, val){
+  const t = cellText(val).trim();
+  if(!t || t === '-') return '';
+  return `<span>${label} <b>${escapeHtml(t)}</b></span>`;
+}
+
+async function renderPostcardResults(){
+  const input = document.getElementById('postcard-search');
   const resultsEl = document.getElementById('postcard-results');
+  const q = input.value.trim().toLowerCase();
   if(!postcardRows){
     if(q.length < 2) return;
     setStatus('postcard-status', 'loading', 'กำลังโหลดฐานข้อมูล Postcard...');
@@ -2193,6 +2307,8 @@ document.getElementById('postcard-search').addEventListener('input', async (e) =
       setStatus('postcard-status', 'error', 'โหลดไม่สำเร็จ: ' + err.message);
       return;
     }
+    // user may have kept typing while loading
+    if(input.value.trim().toLowerCase() !== q) return;
   }
   if(q.length < 2){
     resultsEl.classList.remove('open');
@@ -2210,15 +2326,50 @@ document.getElementById('postcard-search').addEventListener('input', async (e) =
     return;
   }
   resultsEl.innerHTML = matches.map(({entry, idx}) => {
-    const title = escapeHtml(cellText(entry.r[1]));
-    const date = escapeHtml(cellText(entry.r[9]));
-    const total = escapeHtml(cellText(entry.r[8]));
-    return `<div class="qs-opt">
-      <span>${title}<span class="qs-meta">${date} · ทั้งหมด ${total}</span></span>
-      <button class="btn-sm" type="button" data-add="${idx}">+ เพิ่ม</button>
+    const r = entry.r;
+    const title = escapeHtml(cellText(r[1]));
+    const date = escapeHtml(cellText(r[9]).trim() || '-');
+    const total = escapeHtml(cellText(r[8]).trim() || '-');
+    const added = postcardCart.includes(entry);
+    const sub = [
+      pcSubItem('ตัว/แผ่น', r[2]),
+      pcSubItem('เคลือบ', r[3]),
+      pcSubItem('ต้องการ', r[4]),
+      pcSubItem('พิมพ์จริง', r[5]),
+      pcSubItem('กระดาษ', r[6]),
+      pcSubItem('เทส/เสีย', r[7])
+    ].filter(Boolean).join('');
+    return `<div class="qs-opt${added ? ' added' : ''}" data-idx="${idx}">
+      <div class="pc-main">
+        <span class="pc-title">${title}</span>
+        ${sub ? `<span class="pc-sub">${sub}</span>` : ''}
+      </div>
+      <div class="pc-side">
+        <div><div class="pc-date">${date}</div><div class="pc-total">ทั้งหมด <b>${total}</b></div></div>
+        <button class="btn-sm pc-add" type="button" data-add="${idx}">${added ? '✓ เพิ่มแล้ว' : '+ เพิ่ม'}</button>
+      </div>
     </div>`;
   }).join('');
   resultsEl.classList.add('open');
+}
+
+// keep the dropdown's "เพิ่มแล้ว" marks in sync with the cart without redrawing
+// (so the list, scroll position and typed text all stay put)
+function syncPostcardResultMarks(){
+  document.querySelectorAll('#postcard-results .qs-opt[data-idx]').forEach(opt => {
+    const entry = postcardRows && postcardRows[parseInt(opt.dataset.idx, 10)];
+    const added = !!entry && postcardCart.includes(entry);
+    opt.classList.toggle('added', added);
+    const btn = opt.querySelector('button[data-add]');
+    if(btn) btn.textContent = added ? '✓ เพิ่มแล้ว' : '+ เพิ่ม';
+  });
+}
+
+document.getElementById('postcard-search').addEventListener('input', renderPostcardResults);
+// clicking back into the box re-opens the previous results (text is kept)
+document.getElementById('postcard-search').addEventListener('focus', () => {
+  const el = document.getElementById('postcard-results');
+  if(document.getElementById('postcard-search').value.trim().length >= 2 && el.innerHTML) el.classList.add('open');
 });
 
 document.addEventListener('click', (e) => {
@@ -2233,15 +2384,12 @@ document.getElementById('postcard-results').addEventListener('click', (e) => {
   if(!btn) return;
   const idx = parseInt(btn.dataset.add, 10);
   const entry = postcardRows[idx];
+  if(!entry || postcardCart.includes(entry)) return;
   postcardCart.push(entry);
   renderPostcardTable();
+  syncPostcardResultMarks();
   showToast('postcard-toast', `เพิ่ม "${cellText(entry.r[1])}" แล้ว ✓`);
-  const resultsEl = document.getElementById('postcard-results');
-  resultsEl.classList.remove('open');
-  resultsEl.innerHTML = '';
-  const searchInput = document.getElementById('postcard-search');
-  searchInput.value = '';
-  searchInput.focus();
+  // search text + result list intentionally stay, so several titles can be added in a row
 });
 
 document.getElementById('postcard-clear').addEventListener('click', () => {
@@ -2249,6 +2397,7 @@ document.getElementById('postcard-clear').addEventListener('click', () => {
   if(!confirm('ล้างรายการทั้งหมดในรายงานนี้?')) return;
   postcardCart = [];
   renderPostcardTable();
+  syncPostcardResultMarks();
 });
 
 document.getElementById('postcard-print').addEventListener('click', () => window.print());
@@ -2258,7 +2407,8 @@ document.getElementById('postcard-download').addEventListener('click', async () 
   const wb = new ExcelJS.Workbook();
   const { period } = getSelectedPeriod('postcard');
   addTableAsWorksheet(wb, table, EXCEL_SHEET_NAMES.postcard(period), EXCEL_SHEET_TITLES.postcard(period));
-  await downloadWorkbook(wb, `สรุปยอด ดิจิทัล-การ์ด-เพลท (${period}).xlsx`);
+  // period = เดือน/ปี (พ.ศ. 2 หลัก) from the month/year boxes, e.g. "สิงหาคม 69"
+  await downloadWorkbook(wb, `สรุปยอดพิมพ์การ์ดแต่ละเดือน (${period}).xlsx`);
 });
 
 function renderPostcardTable(){
@@ -2322,7 +2472,54 @@ document.getElementById('postcard-table-wrap').addEventListener('click', (e) => 
   const removed = postcardCart[idx];
   postcardCart.splice(idx, 1);
   renderPostcardTable();
+  syncPostcardResultMarks();
   if(removed) showToast('postcard-toast', `ลบ "${cellText(removed.r[1])}" แล้ว`, 'danger');
+});
+
+/* ============ LINKED MONTH/YEAR + SEARCH-ALL ============
+   The เดือน / ปี boxes of Plate B|W, Plate Color, Postcard and Digital are linked:
+   changing one updates the other three, and pressing ค้นหา on any of these tabs
+   runs the search on all four at once. */
+const PERIOD_TABS = ['bw', 'color', 'postcard', 'chartbw'];
+
+function syncPeriodFrom(src){
+  const m = document.getElementById(src + '-month');
+  const y = document.getElementById(src + '-year');
+  if(!m || !y) return;
+  PERIOD_TABS.forEach(k => {
+    if(k === src) return;
+    const om = document.getElementById(k + '-month');
+    const oy = document.getElementById(k + '-year');
+    if(om) om.value = m.value;   // plain assignment: does not fire events, so no loops
+    if(oy) oy.value = y.value;
+  });
+}
+PERIOD_TABS.forEach(k => {
+  const m = document.getElementById(k + '-month');
+  const y = document.getElementById(k + '-year');
+  if(m) m.addEventListener('change', () => syncPeriodFrom(k));
+  if(y){
+    y.addEventListener('input', () => syncPeriodFrom(k));
+    y.addEventListener('change', () => syncPeriodFrom(k));
+  }
+});
+
+const SEARCH_BUTTON_IDS = { bw: 'bw-fetch', color: 'color-fetch', chartbw: 'chartbw-fetch', postcard: 'postcard-fetch-month' };
+const SEARCH_RUNNERS = {
+  bw: () => runMonthReport('bw'),
+  color: () => runMonthReport('color'),
+  chartbw: () => runMonthReport('chartbw'),
+  postcard: () => runPostcardMonth()
+};
+Object.keys(SEARCH_BUTTON_IDS).forEach(src => {
+  const btn = document.getElementById(SEARCH_BUTTON_IDS[src]);
+  if(!btn) return;
+  // the button's own handler (registered earlier) searches its own tab; this one
+  // first syncs the month/year, then runs the other three tabs too
+  btn.addEventListener('click', () => {
+    syncPeriodFrom(src);
+    PERIOD_TABS.filter(k => k !== src).forEach(k => { SEARCH_RUNNERS[k](); });
+  });
 });
 
 /* ============ CTP (QC) CHECKLIST TAB — merged from ctp-checklist-generator.html ============ */
@@ -2455,8 +2652,12 @@ const EXTRACTED_FIELD_IDS = [
 ];
 function clearExtractedFields() {
   EXTRACTED_FIELD_IDS.forEach(id => { document.getElementById(id).value = ""; });
-  // layout / pageOrder are fixed defaults per shop convention (กลับนอก, ขวา–ซ้ายแบบญี่ปุ่น)
-  // and are intentionally NEVER reset or auto-detected — only plateSize is recalculated.
+  // pageOrder (ขวา–ซ้ายแบบญี่ปุ่น) is a fixed shop default, never reset/auto-detected.
+  // plateSize and layout ARE both auto-detected on every upload (see
+  // autoSelectChoiceGroup in extractFields) — setRadioIfFound overwrites
+  // whichever was selected before, so clearing them here first isn't required,
+  // but plateSize is cleared anyway as a visual "nothing picked yet" cue while
+  // the file is still loading.
   document.querySelectorAll('input[name="plateSize"]').forEach(r => { r.checked = false; });
   document.getElementById("jobnameWarn").style.display = "none";
   render();
@@ -2912,7 +3113,7 @@ function detectVisualMarkedOption(items, viewport, canvas, options) {
   return { value:"", confidence:0, details };
 }
 
-function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas) {
+function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas, preferOnAmbiguous) {
   const line = lines.find(l => options.some(opt => flexRe(opt).test(l))) || "";
   const textChoice = markedOptionInText(line, options);
 
@@ -2921,6 +3122,17 @@ function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas) {
   // be a vector graphic invisible to text extraction.
   let chosen = visual.value || textChoice;
   let source = visual.value ? "visual" : (textChoice ? "text" : "default");
+
+  // When the scan shows what looks like a mark on more than one checkbox at
+  // once (e.g. a stray line/smudge crossing both boxes), the confidence gap
+  // between them is too small to trust picking whichever came out marginally
+  // darker — go with the shop's known-safer default for this field instead.
+  // Only kicks in when the caller supplied one (e.g. layout → "กลับนอก");
+  // groups without a preference (e.g. plateSize) keep the old behavior.
+  if (visual.ambiguous && preferOnAmbiguous) {
+    chosen = preferOnAmbiguous;
+    source = "ambiguous-default";
+  }
 
   // Last resort: never leave this choice blank — fall back to the shop's most
   // common size if nothing could be read from the file at all.
@@ -2978,8 +3190,21 @@ function extractFields(lines, items, viewport, renderedCanvas) {
     // titles sometimes wrap a nickname/skill name in quotes, e.g.
     // CHEAT SKILL "SHISHA SOSEI" 5 — without " here, that quote broke the
     // match and the whole English title silently failed to extract.
-    const m = (line || "").match(/(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9 .,'"&~()/\-]{2,})\s*$/);
-    return m ? m[1].replace(/\s+/g, " ").trim() : "";
+    //
+    // Finds the LAST sizeable Latin run on the line to locate where the
+    // English title starts, then keeps everything from there to the end of
+    // the line — not just the Latin portion itself — rather than requiring
+    // the match to reach the literal end of the string (\s*$). Some files
+    // glue a Thai volume annotation right after the English title on the
+    // same merged line, e.g. "...จำนวนหน้า : 208หน้า HENJIN NO SALAD BOWL
+    // (นิยาย) 04", and that "(นิยาย) 04" belongs with the title — it's the
+    // same volume annotation insertVolumeWord() below turns into "เล่ม 04"
+    // for the Thai title, so the English title needs to carry it too instead
+    // of having it silently dropped.
+    const runs = [...(line || "").matchAll(/(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9 .,'"&~()/\-]{2,}/g)];
+    if (!runs.length) return "";
+    const fromTitleStart = (line || "").slice(runs[runs.length - 1].index);
+    return fromTitleStart.replace(/\s+/g, " ").trim();
   }
 
   let jobName2 = valueAfterLabel(lines, "English") || valueAfterLabel(lines, "ENGLISH") || valueAfterLabel(lines, "ชื่อภาษาอังกฤษ");
@@ -3084,7 +3309,8 @@ function extractFields(lines, items, viewport, renderedCanvas) {
   autoSelectChoiceGroup(
     "layout",
     ["กลับในตัว", "กลับนอก"],
-    lines, items, viewport, renderedCanvas
+    lines, items, viewport, renderedCanvas,
+    "กลับนอก" // if both checkboxes look marked at once (e.g. a stray line crossing both), trust this default rather than a marginal confidence difference
   );
 
   // --- Bleed (mm) is a fixed shop default (3mm) — no longer read from the file,
@@ -3966,6 +4192,7 @@ setInterval(loadAll, 120000);
         size: cellDisplay(r[4]),
         type: cellDisplay(r[6]),
         qty: cellDisplay(r[7]),
+        note: cellDisplay(r[8]),
         date: parseDateCell(r[def.dateColIndex])
       }))
       .filter(en => en.title !== '-')
@@ -4004,6 +4231,7 @@ setInterval(loadAll, 120000);
         <td class="num">${escapeHtml(en.type)}</td>
         <td class="num">${escapeHtml(en.qty)}</td>
         <td class="num">${en.date ? `${en.date.d}/${en.date.m+1}/${en.date.y}` : '-'}</td>
+        <td>${en.note === '-' ? '' : escapeHtml(en.note)}</td>
         <td class="num"><button class="bp-add-btn" type="button" data-i="${i}">+ เพิ่ม</button></td>
       </tr>`).join('');
     wrap.style.display = '';
@@ -4055,7 +4283,7 @@ setInterval(loadAll, 120000);
         const vol = cellText(en.r[3]).trim();
         const d = parseDateCell(en.r[bpSearchDef.dateColIndex]);
         const dateLabel = d ? `${THAI_MONTHS_SHORT[d.m]} ${d.y}` : '';
-        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>เล่ม ${escapeHtml(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
+        return `<div class="qs-opt" data-idx="${idx}"><span>${title}${vol ? ` <b>${formatVolumeLabel(vol)}</b>` : ''}</span><span class="qs-meta">${escapeHtml(dateLabel)}</span></div>`;
       }).join('');
     }
     bpSearchBox.classList.add('open');
@@ -4301,7 +4529,7 @@ setInterval(loadAll, 120000);
       ? bpItems.map((it, i) => `
         <tr>
           <td class="bp-c-idx">${i+1}</td>
-          <td class="bp-c-title">${escapeHtml(it.title)}${it.volume ? ` <b>เล่ม ${escapeHtml(it.volume)}</b>` : ''}</td>
+          <td class="bp-c-title">${escapeHtml(it.title)}${it.volume ? ` <b>${formatVolumeLabel(it.volume)}</b>` : ''}</td>
           <td class="bp-c-num">${escapeHtml(it.qty)}</td>
           <td class="bp-c-size">${escapeHtml(it.size)}</td>
           <td class="bp-c-type">${escapeHtml(it.type)}</td>
