@@ -2598,7 +2598,7 @@ async function handleFile(file) {
     const content = await page.getTextContent();
     const lines = buildLines(content.items);
     extractFields(lines, content.items, viewport, canvas);
-    document.getElementById("extractMsg").textContent = "ดึงข้อมูลที่อ่านได้แล้ว — ระบบวิเคราะห์ช่องเลือกจากภาพ PDF ให้แล้ว กรุณาตรวจสอบอีกครั้ง";
+    document.getElementById("extractMsg").textContent = "ดึงข้อมูลที่อ่านได้แล้ว — กรุณาตรวจสอบชื่อและจำนวนกับต้นฉบับ และเลือกช่องที่ระบบอ่านไม่ได้หรือไม่แน่ใจ";
   } catch (err) {
     document.getElementById("extractMsg").textContent = "เกิดข้อผิดพลาดในการอ่านไฟล์ PDF: " + err.message;
   } finally {
@@ -2652,13 +2652,10 @@ const EXTRACTED_FIELD_IDS = [
 ];
 function clearExtractedFields() {
   EXTRACTED_FIELD_IDS.forEach(id => { document.getElementById(id).value = ""; });
-  // pageOrder (ขวา–ซ้ายแบบญี่ปุ่น) is a fixed shop default, never reset/auto-detected.
-  // plateSize and layout ARE both auto-detected on every upload (see
-  // autoSelectChoiceGroup in extractFields) — setRadioIfFound overwrites
-  // whichever was selected before, so clearing them here first isn't required,
-  // but plateSize is cleared anyway as a visual "nothing picked yet" cue while
-  // the file is still loading.
-  document.querySelectorAll('input[name="plateSize"]').forEach(r => { r.checked = false; });
+  // Never carry a previous document's selections into the next upload.
+  ["plateSize", "layout", "pageOrder"].forEach(name => {
+    document.querySelectorAll('input[name="' + name + '"]').forEach(r => { r.checked = false; });
+  });
   document.getElementById("jobnameWarn").style.display = "none";
   render();
 }
@@ -2714,6 +2711,7 @@ function grab(text, re) {
 // Several Thai vowels/marks are exported as Private Use Area characters.
 function normalizeThaiPdfText(s) {
   return (s || "")
+    .replace(/ญี่ปุ[\uF705ี]น/g, "ญี่ปุ่น") // this font exports the tone mark as a vowel
     .replace(/\uF701/g, "\u0E34") // ิ
     .replace(/\uF705/g, "\u0E35") // ี
     .replace(/\uF70A/g, "\u0E48") // ่
@@ -2807,6 +2805,8 @@ function markedOptionInText(text, options) {
   text = normLine(text);
 
   // Checked-box glyphs that PDF.js may return.
+  const explicit = options.filter(opt => new RegExp("[☑☒✓✔🗹]\\s*" + flexPattern(opt)).test(text));
+  if (explicit.length) return explicit.length === 1 ? explicit[0] : "";
   const checkedGlyphRe = /[☑☒✓✔🗹]/;
 
   // Explicit checked glyph directly before an option.
@@ -3025,40 +3025,41 @@ function checkboxVisualScore(px, canvas, cx, cy) {
   return best;
 }
 
+// PDF.js often splits one option across several text runs. Match the full
+// visual row, retaining character positions so the checkbox belongs to that option.
 function findVisualCheckboxForOption(items, option, viewport, canvas, px) {
-  const re = flexRe(option);
-  const candidates = [];
-
-  for (const it of (items || [])) {
-    const str = normalizeThaiPdfText(it.str || "");
-    if (!str || !re.test(str)) continue;
-
-    const p = viewport.convertToViewportPoint(
-      Number(it.transform?.[4] || 0),
-      Number(it.transform?.[5] || 0)
-    );
-    candidates.push({ x: p[0], y: p[1], item: it });
+  const rows = [];
+  for (const it of items || []) {
+    if (!it.str?.trim()) continue;
+    const y = Number(it.transform?.[5] || 0);
+    let row = rows.find(r => Math.abs(r.y - y) <= 3);
+    if (!row) { row = { y, items: [] }; rows.push(row); }
+    row.items.push(it);
   }
-
-  if (!candidates.length) return null;
-
   let best = null;
-  // The checkbox is immediately to the left of the option text. Search a
-  // compact area so nearby row lines/text cannot become candidates.
-  for (const a of candidates) {
-    for (let dx = 7; dx <= 34; dx += 1) {
-      for (let dy = -11; dy <= 4; dy += 1) {
-        const cx = Math.round(a.x - dx);
-        const cy = Math.round(a.y + dy);
-        const s = checkboxVisualScore(px, canvas, cx, cy);
-
-        // A real checkbox has both a recognizable perimeter and a stronger
-        // center-horizontal stroke when selected.
-        if (s.borderScore < 0.18) continue;
-        const score = s.score - Math.abs(dx - 14) * 0.012 - Math.abs(dy + 4) * 0.01;
-        if (!best || score > best.score) {
-          best = { ...s, score, anchor: a };
-        }
+  for (const row of rows) {
+    const parts = row.items.sort((a,b) => a.transform[4] - b.transform[4]);
+    let text = "";
+    const spans = parts.map(item => {
+      const start = text.length;
+      text += normalizeThaiPdfText(item.str) + " ";
+      return { item, start, end: text.length };
+    });
+    const match = flexRe(option).exec(text);
+    if (!match) continue;
+    const first = spans.find(s => s.end > match.index);
+    const checkbox = spans.filter(s => s.end <= match.index && /[☐☑☒]/.test(s.item.str)).pop();
+    const anchor = checkbox?.item || first.item;
+    const point = viewport.convertToViewportPoint(anchor.transform[4], anchor.transform[5]);
+    const scale = Math.hypot(...viewport.transform.slice(0,2));
+    const centerX = checkbox ? point[0] + anchor.width * scale / 2 : point[0] - 14;
+    // Search close to the actual glyph, never across adjacent labels or table lines.
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -9; dy <= -2; dy++) {
+        const hit = checkboxVisualScore(px, canvas, Math.round(centerX + dx), Math.round(point[1] + dy));
+        if (hit.borderScore < 0.35) continue;
+        const score = hit.score - Math.abs(dx) * 0.08 - Math.abs(dy + 5) * 0.03;
+        if (!best || score > best.score) best = { ...hit, score };
       }
     }
   }
@@ -3094,59 +3095,23 @@ function detectVisualMarkedOption(items, viewport, canvas, options) {
 
   const checked = details.filter(d => d.checked).sort((a,b) => b.confidence - a.confidence);
 
-  // Always commit to the strongest candidate rather than leaving the group
-  // blank on a close call — a confident best guess is more useful in
-  // production than an empty field the person has to fill in from scratch.
-  if (checked.length >= 1) {
-    const ambiguous = checked.length > 1 && (checked[0].confidence - checked[1].confidence) < 0.16;
-    return { value: checked[0].option, confidence: checked[0].confidence, details, ambiguous };
+  // An empty or ambiguous checkbox is not evidence of a selection.
+  if (checked.length === 1) {
+    return { value: checked[0].option, confidence: checked[0].confidence, details };
   }
-
-  // Nothing crossed the "checked" threshold — fall back to whichever option
-  // scored highest anyway, as long as we located its checkbox on the page.
-  const withScore = details.filter(d => d.reason !== "ไม่พบตำแหน่งช่อง");
-  if (withScore.length) {
-    const best = [...withScore].sort((a,b) => b.confidence - a.confidence)[0];
-    return { value: best.option, confidence: best.confidence, details, weak: true };
-  }
-
-  return { value:"", confidence:0, details };
+  return { value: "", confidence: 0, details, ambiguous: checked.length > 1 };
 }
 
-function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas, preferOnAmbiguous) {
-  const line = lines.find(l => options.some(opt => flexRe(opt).test(l))) || "";
-  const textChoice = markedOptionInText(line, options);
-
+function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas) {
+  const relevant = lines.filter(l => options.some(opt => flexRe(opt).test(l)));
+  const marked = [...new Set(relevant.map(l => markedOptionInText(l, options)).filter(Boolean))];
+  const textChoice = marked.length === 1 ? marked[0] : "";
   const visual = detectVisualMarkedOption(items, viewport, canvas, options);
-  // Visual pixels are treated as authoritative because the selected mark can
-  // be a vector graphic invisible to text extraction.
-  let chosen = visual.value || textChoice;
-  let source = visual.value ? "visual" : (textChoice ? "text" : "default");
-
-  // When the scan shows what looks like a mark on more than one checkbox at
-  // once (e.g. a stray line/smudge crossing both boxes), the confidence gap
-  // between them is too small to trust picking whichever came out marginally
-  // darker — go with the shop's known-safer default for this field instead.
-  // Only kicks in when the caller supplied one (e.g. layout → "กลับนอก");
-  // groups without a preference (e.g. plateSize) keep the old behavior.
-  if (visual.ambiguous && preferOnAmbiguous) {
-    chosen = preferOnAmbiguous;
-    source = "ambiguous-default";
-  }
-
-  // Last resort: never leave this choice blank — fall back to the shop's most
-  // common size if nothing could be read from the file at all.
-  if (!chosen) { chosen = options[Math.floor(options.length / 2)]; source = "default"; }
-
+  const conflict = textChoice && visual.value && textChoice !== visual.value;
+  const chosen = conflict || marked.length > 1 ? "" : (textChoice || visual.value);
+  document.querySelectorAll('input[name="' + name + '"]').forEach(r => { r.checked = false; });
   setRadioIfFound(name, chosen);
-
-  return {
-    name,
-    chosen,
-    confidence: visual.value ? visual.confidence : (textChoice ? 0.65 : 0),
-    source,
-    ambiguous: !!visual.ambiguous || !!visual.weak
-  };
+  return { name, chosen, source: chosen ? (textChoice ? "text" : "visual") : "unresolved" };
 }
 
 function extractFields(lines, items, viewport, renderedCanvas) {
@@ -3183,28 +3148,23 @@ function extractFields(lines, items, viewport, renderedCanvas) {
   // happens when the file has no separate English line at all and the title
   // itself is already in English (jobName1 already captured it).
   function trailingLatinPhrase(line) {
-    // The lookbehind rejects a match that starts mid-word (e.g. the "x" inside
-    // "12.5x18cm." from the ขนาดงาน line) — a real English title always starts
-    // right after whitespace/punctuation, never glued onto a preceding digit/letter.
-    // The allowed-character class includes both quote styles (' and ") since
-    // titles sometimes wrap a nickname/skill name in quotes, e.g.
-    // CHEAT SKILL "SHISHA SOSEI" 5 — without " here, that quote broke the
-    // match and the whole English title silently failed to extract.
-    //
-    // Finds the LAST sizeable Latin run on the line to locate where the
-    // English title starts, then keeps everything from there to the end of
-    // the line — not just the Latin portion itself — rather than requiring
-    // the match to reach the literal end of the string (\s*$). Some files
-    // glue a Thai volume annotation right after the English title on the
-    // same merged line, e.g. "...จำนวนหน้า : 208หน้า HENJIN NO SALAD BOWL
-    // (นิยาย) 04", and that "(นิยาย) 04" belongs with the title — it's the
-    // same volume annotation insertVolumeWord() below turns into "เล่ม 04"
-    // for the Thai title, so the English title needs to carry it too instead
-    // of having it silently dropped.
-    const runs = [...(line || "").matchAll(/(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9 .,'"&~()/\-]{2,}/g)];
-    if (!runs.length) return "";
-    const fromTitleStart = (line || "").slice(runs[runs.length - 1].index);
-    return fromTitleStart.replace(/\s+/g, " ").trim();
+    // Strip the count field sharing this row, then preserve the whole title,
+    // including punctuation and Thai annotations between Latin words.
+    let text = (line || "").trim();
+    const label = flexRe("จำนวนหน้า").exec(text);
+    if (label) {
+      text = text.slice(label.index + label[0].length)
+        .replace(/^\s*[:：]?\s*[\d,]+\s*/, "")
+        .replace(new RegExp("^" + flexPattern("หน้า")), "").trim();
+    }
+    const start = /(?<![A-Za-z0-9])[A-Za-z][A-Za-z]/.exec(text);
+    if (!start) return "";
+    text = text.slice(start.index);
+    // Do not consume adjacent labelled fields on the same visual row.
+    const boundary = /(?:จำนวนหน้า|จำนวนเพลท|จำนวนยก|ขนาดงาน|รหัสงาน|ผู้ตรวจ|QC\s*[:：])/i.exec(text);
+    if (boundary) text = text.slice(0, boundary.index);
+    if (/^(?:Form\s*No|CTP\b|PRE-?PRESS\b|QC\b|PDF\b|ISBN\b|cm\b|mm\b)/i.test(text)) return "";
+    return text.replace(/\s+/g, " ").trim();
   }
 
   let jobName2 = valueAfterLabel(lines, "English") || valueAfterLabel(lines, "ENGLISH") || valueAfterLabel(lines, "ชื่อภาษาอังกฤษ");
@@ -3282,7 +3242,9 @@ function extractFields(lines, items, viewport, renderedCanvas) {
   // e.g. "3เพลท /2ยกครึ่ง" (2ยกครึ่ง = 2.5 ยก). We keep that as-is rather than
   // forcing it into a rigid numeric template, just tidying up the spacing. ---
   const platesRaw = valueAfterLabelAnywhere(lines, full, "จำนวนเพลท") || valueAfterLabelAnywhere(lines, full, "จำนวนยก");
-  const platesClean = platesRaw
+  // Stop at the next field; row grouping may place two cells on one line.
+  const platesValue = platesRaw.split(/จำนวนหน้า|ขนาดงาน|ขนาดไซส์เพลท|รูปแบบ|ผู้ตรวจ|ชื่องาน/)[0];
+  const platesClean = platesValue
     .replace(/\s*\/\s*/g, " / ")
     .replace(/(\d)(เพลท|ยก|ครึ่ง)/g, "$1 $2")
     .replace(/\s+/g, " ")
@@ -3298,9 +3260,9 @@ function extractFields(lines, items, viewport, renderedCanvas) {
   // Both are now auto-detected the same way, using two independent signals
   // combined for accuracy:
   //   1) PDF text extraction (fast fallback)
-  //   2) rendered-pixel inspection of the actual checkbox mark (wins when available,
-  //      since the selected mark in this form can be a vector line invisible as text)
-  // pageOrder (ขวา–ซ้ายแบบญี่ปุ่น) stays a fixed shop default — not auto-detected.
+  //   2) rendered-pixel inspection of vector marks invisible to text extraction.
+  // Conflicting or unreadable marks are left for the user to confirm.
+  // Read page order from the source just like the other checkbox groups.
   autoSelectChoiceGroup(
     "plateSize",
     ["745×605", "925×740", "1030×790"],
@@ -3309,12 +3271,16 @@ function extractFields(lines, items, viewport, renderedCanvas) {
   autoSelectChoiceGroup(
     "layout",
     ["กลับในตัว", "กลับนอก"],
-    lines, items, viewport, renderedCanvas,
-    "กลับนอก" // if both checkboxes look marked at once (e.g. a stray line crossing both), trust this default rather than a marginal confidence difference
+    lines, items, viewport, renderedCanvas
+  );
+  autoSelectChoiceGroup(
+    "pageOrder",
+    ["เปิดซ้าย–ขวาแบบไทย", "ขวา–ซ้ายแบบญี่ปุ่น"],
+    lines, items, viewport, renderedCanvas
   );
 
   // --- Bleed (mm) is a fixed shop default (3mm) — no longer read from the file,
-  // same treatment as layout/pageOrder. Left as-is if the person edits it manually. ---
+  // Left as-is if the person edits it manually. ---
 
   // --- ผู้ตรวจ (CTP) / QC: the name is entered manually and treated as authoritative,
   // so it is intentionally NOT overwritten here. Only the date is auto-read from the file. ---
@@ -3364,7 +3330,8 @@ const REQUIRED_TEXT_FIELDS = [
 ];
 const REQUIRED_CHOICES = [
   ["plateSize", "ขนาดไซส์เพลท"],
-  ["layout", "รูปแบบการ Layout"]
+  ["layout", "รูปแบบการ Layout"],
+  ["pageOrder", "การจัดเรียงหน้า Layout งานเปิดอ่าน"]
 ];
 
 // Highlights every required field/choice that's still empty with a red border,
