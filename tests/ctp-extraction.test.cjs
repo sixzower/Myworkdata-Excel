@@ -83,3 +83,23 @@ test('layout prioritizes กลับนอก for multiple visual marks without
   const pageOrder=p.ctx.autoSelectChoiceGroup('pageOrder',['เปิดซ้าย–ขวาแบบไทย','ขวา–ซ้ายแบบญี่ปุ่น'],[],[],null,null);
   assert.equal(pageOrder.chosen,'');
 });
+test('thin vector layout marks select the real single option or กลับนอก for both',()=>{
+  for (const selected of [[],[0],[1],[0,1]]) {
+    const p=parser(), width=260, height=200;
+    const data=new Uint8ClampedArray(width*height*4).fill(255);
+    const items=[];
+    function item(str,x,w){items.push({str,width:w,transform:[7,0,0,7,x,100]});}
+    function dark(x,y){const i=(y*width+x)*4;data[i]=data[i+1]=data[i+2]=0;}
+    for(const [index,left] of [20,100].entries()) {
+      item('☐',left,10);item(index===0?'กลับในตัว':'กลับนอก',left+12,30);
+      const cx=Math.round((left+5)*1.4),cy=135;
+      for(let x=cx-5;x<=cx+5;x++){dark(x,cy-5);dark(x,cy+5);}
+      for(let y=cy-5;y<=cy+5;y++){dark(cx-5,y);dark(cx+5,y);}
+      if(selected.includes(index))for(let x=cx-5;x<=cx+5;x++)dark(x,cy);
+    }
+    const canvas={width,height,getContext(){return {getImageData(){return {data};}};}};
+    const viewport={transform:[1.4,0,0,-1.4,0,280],convertToViewportPoint(x,y){return [x*1.4,280-y*1.4];}};
+    const result=p.ctx.autoSelectChoiceGroup('layout',['กลับในตัว','กลับนอก'],[],items,viewport,canvas);
+    assert.equal(result.chosen,selected.length===0?'':selected.includes(1)?'กลับนอก':'กลับในตัว');
+  }
+});
