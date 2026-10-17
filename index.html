@@ -502,6 +502,8 @@ html[data-theme="dark"] .cl-warn{background:#332711;border-color:#5a4420;color:#
 }
 .doc table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .doc td{border:1px solid var(--doc-border);padding:4px 8px;vertical-align:middle;word-wrap:break-word;line-height:1.25;}
+.doc .ctp-job-title{font-family:"Sarabun",Tahoma,sans-serif;font-weight:400;}
+.doc .ctp-job-title .ctp-volume{font-weight:700;font-synthesis:weight;}
 .doc .title{background:var(--doc-purple);color:#fff;font-weight:700;font-size:18px;text-align:center;border:none;padding:8px;}
 .doc .formno{text-align:center;font-weight:700;font-size:14px;border:1px solid var(--doc-border);padding:3px 12px 6px;}
 .doc .instr{color:var(--doc-red);font-weight:700;padding:5px 8px;font-size:0.92em;}
@@ -3420,7 +3422,7 @@ const items = [
 
 function formatCtpTitle(title) {
   return escapeHtml(title).replace(/เล่ม\s*[0-9๐-๙]+(?:\s*[-–—]\s*[0-9๐-๙]+)?/g,
-    '<strong class="ctp-volume" style="font-weight:700;">$&</strong>');
+    '<strong class="ctp-volume">$&</strong>');
 }
 
 function render() {
@@ -3457,11 +3459,11 @@ function render() {
     </td></tr>
     <tr>
       <td colspan="2"><b>รหัสงาน : ${val('f_jobcode')}</b></td>
-      <td><b>ชื่องาน : &nbsp; ${formatCtpTitle(val('f_jobname1'))}</b></td>
+      <td><b>ชื่องาน : &nbsp; </b><span class="ctp-job-title">${formatCtpTitle(val('f_jobname1'))}</span></td>
     </tr>
     <tr>
       <td colspan="2"><b>จำนวนหน้า : ${val('f_pages')}</b></td>
-      <td><b><span style="visibility:hidden;">ชื่องาน : &nbsp; </span>${formatCtpTitle(val('f_jobname2'))}</b></td>
+      <td><b style="visibility:hidden;">ชื่องาน : &nbsp; </b><span class="ctp-job-title">${formatCtpTitle(val('f_jobname2'))}</span></td>
     </tr>
     <tr><td colspan="2"><b>จำนวนยก : ${val('f_plates')}</b></td><td>&nbsp;</td></tr>
     <tr><td colspan="2"><b>ขนาดงาน : ${val('f_size')}</b></td><td>&nbsp;</td></tr>
