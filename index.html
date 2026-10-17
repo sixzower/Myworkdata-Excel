@@ -3418,6 +3418,11 @@ const items = [
   { n:11, render: () => 'จัดเก็บไฟล์ RIP / Final และสำรองข้อมูลเรียบร้อย' },
 ];
 
+function formatCtpTitle(title) {
+  return escapeHtml(title).replace(/เล่ม\s*[0-9๐-๙]+(?:\s*[-–—]\s*[0-9๐-๙]+)?/g,
+    '<strong class="ctp-volume" style="font-weight:700;">$&</strong>');
+}
+
 function render() {
   const pass = checkedVal('fileStatus') === 'pass';
   validateForm();
@@ -3452,11 +3457,11 @@ function render() {
     </td></tr>
     <tr>
       <td colspan="2"><b>รหัสงาน : ${val('f_jobcode')}</b></td>
-      <td><b>ชื่องาน : &nbsp; ${val('f_jobname1')}</b></td>
+      <td><b>ชื่องาน : &nbsp; ${formatCtpTitle(val('f_jobname1'))}</b></td>
     </tr>
     <tr>
       <td colspan="2"><b>จำนวนหน้า : ${val('f_pages')}</b></td>
-      <td><b><span style="visibility:hidden;">ชื่องาน : &nbsp; </span>${val('f_jobname2')}</b></td>
+      <td><b><span style="visibility:hidden;">ชื่องาน : &nbsp; </span>${formatCtpTitle(val('f_jobname2'))}</b></td>
     </tr>
     <tr><td colspan="2"><b>จำนวนยก : ${val('f_plates')}</b></td><td>&nbsp;</td></tr>
     <tr><td colspan="2"><b>ขนาดงาน : ${val('f_size')}</b></td><td>&nbsp;</td></tr>
