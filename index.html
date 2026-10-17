@@ -3104,11 +3104,19 @@ function detectVisualMarkedOption(items, viewport, canvas, options) {
 
 function autoSelectChoiceGroup(name, options, lines, items, viewport, canvas) {
   const relevant = lines.filter(l => options.some(opt => flexRe(opt).test(l)));
-  const marked = [...new Set(relevant.map(l => markedOptionInText(l, options)).filter(Boolean))];
+  const marked = [...new Set(relevant.flatMap(line =>
+    options.filter(option => markedOptionInText(line, [option]))
+  ))];
   const textChoice = marked.length === 1 ? marked[0] : "";
   const visual = detectVisualMarkedOption(items, viewport, canvas, options);
   const conflict = textChoice && visual.value && textChoice !== visual.value;
-  const chosen = conflict || marked.length > 1 ? "" : (textChoice || visual.value);
+  // Only the layout group has a business rule for multiple checked boxes.
+  // A single selection still follows the source; no mark stays unresolved.
+  const multipleLayoutMarks = name === "layout" && (
+    marked.length > 1 || visual.details.filter(detail => detail.checked).length > 1
+  );
+  const chosen = multipleLayoutMarks ? "กลับนอก"
+    : (conflict || marked.length > 1 ? "" : (textChoice || visual.value));
   document.querySelectorAll('input[name="' + name + '"]').forEach(r => { r.checked = false; });
   setRadioIfFound(name, chosen);
   return { name, chosen, source: chosen ? (textChoice ? "text" : "visual") : "unresolved" };

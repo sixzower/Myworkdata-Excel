@@ -63,3 +63,23 @@ test('sample PDF title retains SAINT SEIYA prefix before colon',()=>{
   const p=parser();p.extract(['ชื่องาน: เซนต์เซย์ย่า จ้าวสมุทรคืนบัลลังก์ RERISE OF POSEIDON 03','จำนวนหน้า : 192หน้า SAINT SEIYA : RERISE OF POSEIDON 03']);
   assert.equal(p.fields.get('f_jobname2').value,'SAINT SEIYA : RERISE OF POSEIDON เล่ม 03');
 });
+test('layout uses กลับนอก only for multiple marks, preserving single and empty selections',()=>{
+  for (const [lines,expected] of [
+    [['☑ กลับในตัว ☑ กลับนอก'],'กลับนอก'],
+    [['☑ กลับในตัว','☑ กลับนอก'],'กลับนอก'],
+    [['☑ กลับในตัว ☐ กลับนอก'],'กลับในตัว'],
+    [['☐ กลับในตัว ☑ กลับนอก'],'กลับนอก'],
+    [['☐ กลับในตัว ☐ กลับนอก'],undefined],
+  ]) {
+    const p=parser();p.extract(lines);
+    assert.equal(p.radios.find(r=>r.name==='layout'&&r.checked)?.value,expected);
+  }
+});
+test('layout prioritizes กลับนอก for multiple visual marks without changing other groups',()=>{
+  const p=parser();
+  p.ctx.detectVisualMarkedOption=()=>({value:'',details:[{checked:true},{checked:true}],ambiguous:true});
+  const layout=p.ctx.autoSelectChoiceGroup('layout',['กลับในตัว','กลับนอก'],[],[],null,null);
+  assert.equal(layout.chosen,'กลับนอก');
+  const pageOrder=p.ctx.autoSelectChoiceGroup('pageOrder',['เปิดซ้าย–ขวาแบบไทย','ขวา–ซ้ายแบบญี่ปุ่น'],[],[],null,null);
+  assert.equal(pageOrder.chosen,'');
+});
